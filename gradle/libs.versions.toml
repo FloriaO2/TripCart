@@ -13,6 +13,8 @@ lifecycleViewmodel = "2.9.4"
 activityCompose = "1.11.0"
 navigationCompose = "2.8.4"
 composeBom = "2024.09.00"
+mapsCompose = "6.1.0"
+playServicesMaps = "19.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,6 +42,10 @@ firebase-firestore-ktx = { group = "com.google.firebase", name = "firebase-fires
 firebase-storage-ktx = { group = "com.google.firebase", name = "firebase-storage-ktx" }
 
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version = "21.2.0" }
+play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
+# maps-compose-utils는 마커 클러스터링 등이 필요할 때만 사용
+# maps-compose-utils = { group = "com.google.maps.android", name = "maps-compose-utils", version.ref = "mapsCompose" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

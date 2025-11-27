@@ -5,6 +5,25 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
+// .env 파일에서 API 키 읽기
+fun getEnvValue(key: String, defaultValue: String = ""): String {
+    val envFile = rootProject.file(".env")
+    if (envFile.exists()) {
+        envFile.readLines().forEach { line ->
+            val trimmedLine = line.trim()
+            if (trimmedLine.isNotEmpty() && !trimmedLine.startsWith("#")) {
+                val (envKey, envValue) = trimmedLine.split("=", limit = 2)
+                if (envKey.trim() == key) {
+                    return envValue.trim().removeSurrounding("\"", "\"").removeSurrounding("'", "'")
+                }
+            }
+        }
+    }
+    return defaultValue
+}
+
+val mapsApiKey = getEnvValue("MAPS_API_KEY", "")
+
 android {
     namespace = "com.example.tripcart"
     compileSdk = 36
@@ -17,6 +36,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // AndroidManifest.xml에 API 키 주입
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {
@@ -63,6 +85,12 @@ dependencies {
 
     // Google Sign-In
     implementation(libs.play.services.auth)
+    
+    // Google Maps
+    implementation(libs.play.services.maps)
+    implementation(libs.maps.compose)
+    // maps-compose-utils는 마커 클러스터링 등이 필요할 때만 추가
+    // implementation(libs.maps.compose.utils)
 
     // Testing
     testImplementation(libs.junit)

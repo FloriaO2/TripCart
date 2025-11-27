@@ -8,12 +8,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.tripcart.ui.screen.HomeScreen
 import com.example.tripcart.ui.screen.LoginScreen
+import com.example.tripcart.ui.screen.MapScreen
 import com.example.tripcart.ui.screen.MyPageScreen
 import com.google.firebase.auth.FirebaseAuth
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
     object Home : Screen("home")
+    object Map : Screen("map")
     object MyPage : Screen("my_page")
 }
 
@@ -61,6 +63,9 @@ fun TripCartNavGraph(
                                 }
                             }
                         }
+                        Screen.Map.route -> {
+                            navController.navigate(Screen.Map.route)
+                        }
                         Screen.MyPage.route -> {
                             navController.navigate(Screen.MyPage.route)
                         }
@@ -70,6 +75,34 @@ fun TripCartNavGraph(
                 onNavigateToHome = {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+        
+        composable(Screen.Map.route) {
+            MapScreen(
+                onNavigateToRoute = { route ->
+                    when (route) {
+                        Screen.Home.route, "active_list" -> {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Map.route) { inclusive = false }
+                            }
+                        }
+                        Screen.Map.route -> {
+                            // 이미 Map 화면이면 이동하지 않음
+                        }
+                        Screen.MyPage.route -> {
+                            navController.navigate(Screen.MyPage.route) {
+                                popUpTo(Screen.Map.route) { inclusive = false }
+                            }
+                        }
+                        // TODO: 다른 라우트들도 추가
+                    }
+                },
+                onNavigateToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Map.route) { inclusive = false }
                     }
                 }
             )
@@ -90,6 +123,11 @@ fun TripCartNavGraph(
                         Screen.Home.route, "active_list" -> {
                             navController.navigate(Screen.Home.route) {
                                 popUpTo(Screen.MyPage.route) { inclusive = true }
+                            }
+                        }
+                        Screen.Map.route -> {
+                            navController.navigate(Screen.Map.route) {
+                                popUpTo(Screen.MyPage.route) { inclusive = false }
                             }
                         }
                         // TODO: 다른 라우트들도 추가
