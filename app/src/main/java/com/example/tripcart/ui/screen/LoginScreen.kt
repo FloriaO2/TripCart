@@ -66,11 +66,11 @@ fun LoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(PrimaryBackground)
+            .background(Color.White)
     ) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            containerColor = Color.Transparent
+            containerColor = PrimaryBackground
         ) { paddingValues ->
             Box(
                 modifier = Modifier
@@ -117,7 +117,7 @@ fun LoginScreen(
                                 color = PrimaryAccent.copy(alpha = 0.8f),
                                 modifier = Modifier
                                     .background(
-                                        color = Color(0x2FFFFFFF),
+                                        color = Color(0xE6FFEB3B),
                                         shape = RoundedCornerShape(
                                             topStart = 16.dp,  // 왼쪽 상단
                                             bottomEnd = 16.dp, // 오른쪽 하단
@@ -128,7 +128,7 @@ fun LoginScreen(
                         }
                     }
 
-                    // Logo 이미지
+                    // 로고 이미지
                     Image(
                         painter = painterResource(id = R.drawable.logo),
                         contentDescription = "TripCart Logo",
@@ -159,7 +159,7 @@ fun LoginScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF00B9A8),
                             contentColor = Color(0xFFFFFFFF),
-                            // 로딩 중에도 버튼 색상 유지시키기 위해 disabled 내용 따로 지정 ..
+                            // 로딩 중에도 버튼 색상 유지시키기 위해 disabled 색상 따로 지정 ..
                             disabledContainerColor = Color(0xFF00B9A8),
                             disabledContentColor = Color(0xFFFFFFFF)
                         )

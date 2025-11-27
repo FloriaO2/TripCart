@@ -1,9 +1,6 @@
 package com.example.tripcart.ui.screen
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
@@ -14,32 +11,35 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.tripcart.R
+import androidx.compose.ui.graphics.Color
+import com.example.tripcart.ui.components.AppBottomBar
+import com.example.tripcart.ui.components.AppTopBar
 import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onSignOut: () -> Unit = {}
+    onNavigateToRoute: (String) -> Unit = {},
+    onNavigateToHome: () -> Unit = {}
 ) {
     val user = FirebaseAuth.getInstance().currentUser
     
     Scaffold(
+        containerColor = Color.White,
         topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        text = "TripCart",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
+            AppTopBar(
+                title = "진행 중인 리스트",
+                onNotificationClick = {
+                    // TODO: 알림 기능 구현
                 },
-                actions = {
-                    IconButton(onClick = onSignOut) {
-                        Icon(
-                            imageVector = Icons.Default.ExitToApp,
-                            contentDescription = "로그아웃"
-                        )
-                    }
+                onLogoClick = onNavigateToHome
+            )
+        },
+        bottomBar = {
+            AppBottomBar(
+                currentRoute = "active_list",
+                onItemClick = { route ->
+                    onNavigateToRoute(route)
                 }
             )
         }
@@ -51,19 +51,9 @@ fun HomeScreen(
                 .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                user?.displayName?.let { name ->
-                    Text(
-                        text = "${name}님! 테스트용",
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(bottom = 32.dp)
-                    )
-                }
-            }
+            Text(
+                text = "테스트용"
+            )
         }
     }
 }
