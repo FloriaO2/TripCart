@@ -7,5 +7,6 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="primary_background">#FDC96B</color>
+    <!-- 앱 시작하고 앱 아이콘만 뜰 때의 배경색 (앱 아이콘 색상과 동일하게 수정) -->
+    <color name="primary_background">#FECB6B</color>
 </resources>
