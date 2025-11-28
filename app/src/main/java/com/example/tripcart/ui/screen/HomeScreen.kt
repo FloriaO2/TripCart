@@ -38,9 +38,7 @@ fun HomeScreen(
         bottomBar = {
             AppBottomBar(
                 currentRoute = "active_list",
-                onItemClick = { route ->
-                    onNavigateToRoute(route)
-                }
+                onItemClick = onNavigateToRoute
             )
         }
     ) { paddingValues ->

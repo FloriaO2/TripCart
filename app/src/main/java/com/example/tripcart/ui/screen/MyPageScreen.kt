@@ -38,9 +38,7 @@ fun MyPageScreen(
         bottomBar = {
             AppBottomBar(
                 currentRoute = "my_page",
-                onItemClick = { route ->
-                    onNavigateToRoute(route)
-                }
+                onItemClick = onNavigateToRoute
             )
         }
     ) { paddingValues ->

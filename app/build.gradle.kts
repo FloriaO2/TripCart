@@ -88,6 +88,7 @@ dependencies {
     
     // Google Maps
     implementation(libs.play.services.maps)
+    implementation(libs.play.services.location)
     implementation(libs.maps.compose)
     // maps-compose-utils는 마커 클러스터링 등이 필요할 때만 추가
     // implementation(libs.maps.compose.utils)
