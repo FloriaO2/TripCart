@@ -32,8 +32,8 @@ sealed class BottomNavItem(
         icon = Icons.Default.PlayArrow
     )
     
-    object AllList : BottomNavItem(
-        route = "all_list",
+    object List : BottomNavItem(
+        route = "list",
         title = "전체",
         iconDrawable = R.drawable.folder
     )
@@ -65,7 +65,7 @@ fun AppBottomBar(
 ) {
     val items = listOf(
         BottomNavItem.ActiveList,
-        BottomNavItem.AllList,
+        BottomNavItem.List,
         BottomNavItem.Map,
         BottomNavItem.Ranking,
         BottomNavItem.MyPage

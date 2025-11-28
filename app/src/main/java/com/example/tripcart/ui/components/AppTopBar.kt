@@ -3,6 +3,7 @@ package com.example.tripcart.ui.components
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -20,23 +21,25 @@ import com.example.tripcart.R
 fun AppTopBar(
     title: String = "진행 중인 리스트",
     onNotificationClick: () -> Unit = {},
-    onLogoClick: () -> Unit = {}
+    onLogoClick: () -> Unit = {},
+    onActionClick: () -> Unit = {},
+    showActionButton: Boolean = false
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = Color.White
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             // 좌측 로고 이미지
             IconButton(
                 onClick = onLogoClick,
-                modifier = Modifier.size(50.dp)
+                modifier = Modifier
+                    .size(50.dp)
+                    .align(Alignment.CenterStart)
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.tripcart_border),
@@ -46,28 +49,41 @@ fun AppTopBar(
             }
             
             // 중앙 텍스트
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            Text(
+                text = title,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.Center)
+            )
             
-            // 우측 알림 아이콘
-            IconButton(
-                onClick = onNotificationClick,
-                modifier = Modifier.size(48.dp)
+            // 우측 아이콘들
+            Row(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = "알림"
-                )
+                // + 아이콘 버튼 (조건부 표시)
+                if (showActionButton) {
+                    IconButton(
+                        onClick = onActionClick,
+                        modifier = Modifier.size(35.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "추가"
+                        )
+                    }
+                }
+                // 알림 아이콘
+                IconButton(
+                    onClick = onNotificationClick,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = "알림"
+                    )
+                }
             }
         }
     }

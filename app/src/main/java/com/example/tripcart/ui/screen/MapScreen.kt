@@ -211,7 +211,9 @@ fun MapScreen(
         topBar = {
             AppTopBar(
                 title = "지도",
-                onNotificationClick = {},
+                onNotificationClick = {
+                    // TODO: 알림 기능 구현
+                },
                 onLogoClick = onNavigateToHome
             )
         },
