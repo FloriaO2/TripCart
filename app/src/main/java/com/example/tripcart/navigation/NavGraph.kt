@@ -11,6 +11,7 @@ import com.example.tripcart.ui.screen.ListScreen
 import com.example.tripcart.ui.screen.LoginScreen
 import com.example.tripcart.ui.screen.MapScreen
 import com.example.tripcart.ui.screen.MyPageScreen
+import com.example.tripcart.ui.screen.PlaceSearchScreen
 import com.google.firebase.auth.FirebaseAuth
 
 sealed class Screen(val route: String) {
@@ -19,6 +20,7 @@ sealed class Screen(val route: String) {
     object List : Screen("list")
     object Map : Screen("map")
     object MyPage : Screen("my_page")
+    object PlaceSearch : Screen("place_search")
 }
 
 @Composable
@@ -116,7 +118,21 @@ fun TripCartNavGraph(
                     }
                 },
                 onAddClick = {
-                    // TODO: 추가 기능 구현
+                    // TODO: 상품 추가하기 기능 구현
+                },
+                onNavigateToPlaceSearch = {
+                    navController.navigate(Screen.PlaceSearch.route)
+                }
+            )
+        }
+        
+        composable(Screen.PlaceSearch.route) {
+            PlaceSearchScreen(
+                onBack = {
+                    navController.popBackStack()
+                },
+                onPlaceSelected = {
+                    navController.popBackStack()
                 }
             )
         }

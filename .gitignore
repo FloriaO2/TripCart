@@ -16,6 +16,13 @@ gen/
 out/
 release/
 
+# Build artifacts
+R.txt
+proguard.txt
+third_party_licenses.json
+third_party_licenses.txt
+classes.jar
+
 # Gradle files
 .gradle/
 build/
