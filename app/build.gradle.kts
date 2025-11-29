@@ -97,6 +97,9 @@ dependencies {
     // maps-compose-utils는 마커 클러스터링 등이 필요할 때만 추가
     // implementation(libs.maps.compose.utils)
 
+    // Coil (이미지 업로드에 필요)
+    implementation(libs.coil.compose)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

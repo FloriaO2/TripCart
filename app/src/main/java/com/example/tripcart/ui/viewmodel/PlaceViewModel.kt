@@ -152,7 +152,7 @@ private val COUNTRY_TO_KOREAN = mapOf(
     "Jordan" to "요르단"
 )
 
-/**
+/*
  * 주소에서 국가를 추출하고 주소에서 제거
  * @param address 원본 주소
  * @return Pair<country (한국어 이름), addressWithoutCountry>
@@ -225,9 +225,7 @@ class PlaceViewModel(application: Application) : AndroidViewModel(application) {
         placesClient = Places.createClient(application)
     }
     
-    /*
-     * @param query 검색어 이용해서 장소 검색 (Autocomplete 사용)
-     */
+    // @param query 검색어 이용해서 장소 검색 (Autocomplete 사용)
     fun searchPlaces(query: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
@@ -327,7 +325,7 @@ class PlaceViewModel(application: Application) : AndroidViewModel(application) {
                 //android.util.Log.d("PlaceViewModel", "Places API address: ${place.address}")
                 //android.util.Log.d("PlaceViewModel", "Final address: $finalAddress")
                 
-                // 주소에서 국가 추출 (사전 정의된 국가 목록 사용)
+                // 주소에서 국가 추출 (사전에 정의해둔 국가 목록 사용)
                 val (countryFromAddress, addressWithoutCountry) = extractCountryFromAddress(finalAddress)
                 
                 // 영업시간 추출
@@ -377,9 +375,7 @@ class PlaceViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    /*
-     * Firebase Firestore에 장소 저장 (placeId로 중복 체크)
-     */
+    // Firebase Firestore에 장소 저장 (placeId로 중복 체크)
     fun savePlaceToFirestore(placeDetails: PlaceDetails) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(

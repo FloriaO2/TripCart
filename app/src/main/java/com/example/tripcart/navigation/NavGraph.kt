@@ -6,6 +6,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.tripcart.ui.screen.AddProductScreen
 import com.example.tripcart.ui.screen.HomeScreen
 import com.example.tripcart.ui.screen.ListScreen
 import com.example.tripcart.ui.screen.LoginScreen
@@ -21,6 +22,7 @@ sealed class Screen(val route: String) {
     object Map : Screen("map")
     object MyPage : Screen("my_page")
     object PlaceSearch : Screen("place_search")
+    object AddProduct : Screen("add_product")
 }
 
 @Composable
@@ -118,7 +120,7 @@ fun TripCartNavGraph(
                     }
                 },
                 onAddClick = {
-                    // TODO: 상품 추가하기 기능 구현
+                    navController.navigate(Screen.AddProduct.route)
                 },
                 onNavigateToPlaceSearch = {
                     navController.navigate(Screen.PlaceSearch.route)
@@ -132,6 +134,17 @@ fun TripCartNavGraph(
                     navController.popBackStack()
                 },
                 onPlaceSelected = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(Screen.AddProduct.route) {
+            AddProductScreen(
+                onBack = {
+                    navController.popBackStack()
+                },
+                onProductSaved = {
                     navController.popBackStack()
                 }
             )

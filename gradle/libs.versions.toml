@@ -19,6 +19,7 @@ playServicesMaps = "19.0.0"
 playServicesLocation = "21.3.0"
 playServicesPlaces = "19.0.0"
 placesLibrary = "3.4.0"
+coil = "2.7.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -52,6 +53,8 @@ play-services-location = { group = "com.google.android.gms", name = "play-servic
 play-services-places = { group = "com.google.android.gms", name = "play-services-places", version.ref = "playServicesPlaces" }
 places = { group = "com.google.android.libraries.places", name = "places", version.ref = "placesLibrary" }
 maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
+
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 # maps-compose-utils는 마커 클러스터링 등이 필요할 때만 사용
 # maps-compose-utils = { group = "com.google.maps.android", name = "maps-compose-utils", version.ref = "mapsCompose" }
 
