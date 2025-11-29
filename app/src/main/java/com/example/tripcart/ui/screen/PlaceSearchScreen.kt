@@ -61,7 +61,7 @@ fun PlaceSearchScreen(
             CenterAlignedTopAppBar(
                 title = { 
                     Text(
-                        "상점 검색",
+                        "상점 추가하기",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
