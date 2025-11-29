@@ -12,7 +12,7 @@ import com.example.tripcart.ui.screen.ListScreen
 import com.example.tripcart.ui.screen.LoginScreen
 import com.example.tripcart.ui.screen.MapScreen
 import com.example.tripcart.ui.screen.MyPageScreen
-import com.example.tripcart.ui.screen.PlaceSearchScreen
+import com.example.tripcart.ui.screen.AddPlaceScreen
 import com.google.firebase.auth.FirebaseAuth
 
 sealed class Screen(val route: String) {
@@ -21,7 +21,7 @@ sealed class Screen(val route: String) {
     object List : Screen("list")
     object Map : Screen("map")
     object MyPage : Screen("my_page")
-    object PlaceSearch : Screen("place_search")
+    object AddPlace : Screen("add_place")
     object AddProduct : Screen("add_product")
 }
 
@@ -123,13 +123,13 @@ fun TripCartNavGraph(
                     navController.navigate(Screen.AddProduct.route)
                 },
                 onNavigateToPlaceSearch = {
-                    navController.navigate(Screen.PlaceSearch.route)
+                    navController.navigate(Screen.AddPlace.route)
                 }
             )
         }
         
-        composable(Screen.PlaceSearch.route) {
-            PlaceSearchScreen(
+        composable(Screen.AddPlace.route) {
+            AddPlaceScreen(
                 onBack = {
                     navController.popBackStack()
                 },

@@ -39,7 +39,7 @@ import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaceSearchScreen(
+fun AddPlaceScreen(
     onBack: () -> Unit,
     onPlaceSelected: () -> Unit,
     viewModel: PlaceViewModel = viewModel()
