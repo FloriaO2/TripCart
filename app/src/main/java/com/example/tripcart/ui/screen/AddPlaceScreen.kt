@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -27,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.tripcart.R
 import com.example.tripcart.ui.theme.PrimaryAccent
 import com.example.tripcart.ui.theme.PrimaryBackground
@@ -186,9 +186,9 @@ fun AddPlaceScreen(
                                         val placeId = prediction.placeId
                                         if (placeId.isNotEmpty()) {
                                             // Autocomplete에서 받은 주소 정보 전달 (상점 이름 제외, 주소만)
-                                            val address = prediction.getSecondaryText(null)?.toString() ?: ""
-                                            // Autocomplete에서 받은 장소 이름 전달 (한국어일 가능성이 높음)
-                                            val name = prediction.getPrimaryText(null)?.toString() ?: ""
+                                            val address = prediction.structuredFormatting?.secondaryText ?: ""
+                                            // Autocomplete에서 받은 장소 이름 전달
+                                            val name = prediction.structuredFormatting?.mainText ?: ""
                                             viewModel.fetchPlaceDetails(placeId, address, name)
                                         }
                                     },
@@ -202,11 +202,11 @@ fun AddPlaceScreen(
                                         .padding(16.dp)
                                 ) {
                                     Text(
-                                        text = prediction.getPrimaryText(null).toString(),
+                                        text = prediction.structuredFormatting?.mainText ?: prediction.description,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    if (prediction.getSecondaryText(null) != null) {
+                                    if (prediction.structuredFormatting?.secondaryText != null) {
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
@@ -218,7 +218,9 @@ fun AddPlaceScreen(
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Text(
-                                                text = prediction.getSecondaryText(null).toString(),
+                                                text = viewModel.removeCountryFromAutocompleteAddress(
+                                                    prediction.structuredFormatting.secondaryText
+                                                ),
                                                 fontSize = 14.sp,
                                                 color = Color.Gray
                                             )
@@ -309,9 +311,9 @@ fun AddPlaceScreen(
                         }
 
                         // 상점 이미지 표시
-                        placeDetails.photoBitmap?.let { bitmap ->
-                            Image(
-                                bitmap = bitmap.asImageBitmap(),
+                        placeDetails.photoUrl?.let { url ->
+                            AsyncImage(
+                                model = url,
                                 contentDescription = placeDetails.name,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier

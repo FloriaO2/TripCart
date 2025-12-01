@@ -101,6 +101,13 @@ dependencies {
     // Coil (이미지 업로드에 필요)
     implementation(libs.coil.compose)
 
+    // Retrofit & Gson (Places API REST 호출)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
+    implementation(libs.gson)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

@@ -256,31 +256,6 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         return try {
             val selectedLists = _uiState.value.lists.filter { it.isSelected }
             
-            // Firestore에 장소 저장 (중복 체크)
-            val placeDoc = try {
-                db.collection("places").document(placeDetails.placeId).get().await()
-            } catch (e: Exception) {
-                null
-            }
-            
-            if (placeDoc?.exists() != true) {
-                val placeData = hashMapOf(
-                    "placeId" to placeDetails.placeId,
-                    "name" to placeDetails.name,
-                    "latitude" to placeDetails.latitude,
-                    "longitude" to placeDetails.longitude,
-                    "address" to (placeDetails.address ?: ""),
-                    "country" to (placeDetails.country ?: ""),
-                    "phoneNumber" to (placeDetails.phoneNumber ?: ""),
-                    "websiteUri" to (placeDetails.websiteUri ?: ""),
-                    "openingHours" to (placeDetails.openingHours ?: emptyList<String>())
-                )
-                
-                db.collection("places")
-                    .document(placeDetails.placeId)
-                    .set(placeData)
-                    .await()
-            }
             
             // 각 선택된 리스트에 장소 추가
             selectedLists.forEach { listItem ->
@@ -437,31 +412,6 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     .set(listData)
                     .await()
                 
-                // Firestore에 장소 저장 (중복 체크)
-                val placeDoc = try {
-                    db.collection("places").document(placeDetails.placeId).get().await()
-                } catch (e: Exception) {
-                    null
-                }
-                
-                if (placeDoc?.exists() != true) {
-                    val placeData = hashMapOf(
-                        "placeId" to placeDetails.placeId,
-                        "name" to placeDetails.name,
-                        "latitude" to placeDetails.latitude,
-                        "longitude" to placeDetails.longitude,
-                        "address" to (placeDetails.address ?: ""),
-                        "country" to (placeDetails.country ?: ""),
-                        "phoneNumber" to (placeDetails.phoneNumber ?: ""),
-                        "websiteUri" to (placeDetails.websiteUri ?: ""),
-                        "openingHours" to (placeDetails.openingHours ?: emptyList<String>())
-                    )
-                    
-                    db.collection("places")
-                        .document(placeDetails.placeId)
-                        .set(placeData)
-                        .await()
-                }
                 
                 // 로컬 DB 동기화 상태 업데이트
                 listDao.insertList(listEntity.copy(firestoreSynced = true))
@@ -519,6 +469,70 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+    
+    // 리스트 상세보기: Firestore에서 기본 정보를 가져오고, 현재 운영 상태만 API로 실시간 조회
+    suspend fun getListPlacesWithBusinessStatus(
+        listId: String,
+        placeViewModel: PlaceViewModel
+    ): List<PlaceDetails> {
+        return try {
+            // 1. 리스트 정보 가져오기
+            val listItem = _uiState.value.lists.find { it.listId == listId }
+                ?: return emptyList()
+            
+            // 2. 각 장소의 기본 정보를 Firestore에서 가져오기
+            val placeDetailsList = listItem.places.mapNotNull { place ->
+                try {
+                    val placeDoc = db.collection("places")
+                        .document(place.placeId)
+                        .get()
+                        .await()
+                    
+                    if (placeDoc.exists()) {
+                        val data = placeDoc.data
+                        PlaceDetails(
+                            placeId = data?.get("placeId") as? String ?: place.placeId,
+                            name = data?.get("name") as? String ?: place.name,
+                            latitude = (data?.get("latitude") as? Double) ?: 0.0,
+                            longitude = (data?.get("longitude") as? Double) ?: 0.0,
+                            address = data?.get("address") as? String,
+                            country = data?.get("country") as? String,
+                            phoneNumber = data?.get("phoneNumber") as? String,
+                            websiteUri = data?.get("websiteUri") as? String,
+                            openingHours = (data?.get("openingHours") as? List<*>)?.mapNotNull { it as? String },
+                            photoUrl = data?.get("photoUrl") as? String,
+                            businessStatus = null, // API에서 가져올 예정
+                            isOpenNow = null, // API에서 가져올 예정
+                            currentOpeningHours = null // API에서 가져올 예정
+                        )
+                    } else {
+                        null
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("ListViewModel", "Error loading place from Firestore: ${place.placeId}", e)
+                    null
+                }
+            }
+            
+            // 3. 각 장소의 현재 운영 상태를 API로 조회 (병렬 처리)
+            val businessStatusMap = placeViewModel.fetchPlaceBusinessStatusBatch(
+                placeDetailsList.map { it.placeId }
+            )
+            
+            // 4. 기본 정보와 운영 상태를 합치기
+            placeDetailsList.map { placeDetails ->
+                val businessStatus = businessStatusMap[placeDetails.placeId]
+                placeDetails.copy(
+                    businessStatus = businessStatus?.businessStatus,
+                    isOpenNow = businessStatus?.isOpenNow,
+                    currentOpeningHours = businessStatus?.currentOpeningHours
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ListViewModel", "Error getting list places with business status", e)
+            emptyList()
+        }
     }
 }
 
