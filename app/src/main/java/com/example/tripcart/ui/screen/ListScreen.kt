@@ -1,16 +1,36 @@
 package com.example.tripcart.ui.screen
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.tripcart.R
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tripcart.ui.components.AddItemDialog
 import com.example.tripcart.ui.components.AppBottomBar
 import com.example.tripcart.ui.components.AppTopBar
+import com.example.tripcart.ui.theme.PrimaryBackground
+import com.example.tripcart.ui.theme.SecondaryBackground
+import com.example.tripcart.ui.theme.TertiaryBackground
+import com.example.tripcart.ui.viewmodel.ListViewModel
+import com.example.tripcart.ui.viewmodel.ListItemUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -18,9 +38,17 @@ fun ListScreen(
     onNavigateToRoute: (String) -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onAddClick: () -> Unit = {},
-    onNavigateToPlaceSearch: () -> Unit = {}
+    onNavigateToPlaceSearch: () -> Unit = {},
+    onNavigateToListDetail: (String) -> Unit = {},
+    viewModel: ListViewModel = viewModel()
 ) {
+    val uiState = viewModel.uiState.collectAsState().value
     var showAddDialog by remember { mutableStateOf(false) }
+    
+    // 화면이 표시될 때마다 리스트 갱신
+    LaunchedEffect(Unit) {
+        viewModel.loadLists()
+    }
     
     Scaffold(
         containerColor = Color.White,
@@ -48,12 +76,90 @@ fun ListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp),
+                .background(Color.White)
+        ) {
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (uiState.lists.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "전체 리스트 화면"
-            )
+                        text = "리스트가 없습니다",
+                        color = Color.Gray,
+                        fontSize = 16.sp
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(uiState.lists) { listItem ->
+                        var showDeleteDialog by remember { mutableStateOf(false) }
+                        
+                        ListCard(
+                            status = listItem.status,
+                            listName = listItem.name,
+                            country = listItem.country ?: "",
+                            placeNames = listItem.places.map { it.name },
+                            productCount = listItem.productCount,
+                            onClick = {
+                                onNavigateToListDetail(listItem.listId)
+                            },
+                            onDelete = {
+                                showDeleteDialog = true
+                            }
+                        )
+                        
+                        // 삭제 확인 다이얼로그
+                        if (showDeleteDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showDeleteDialog = false },
+                                title = {
+                                    Text("리스트 삭제")
+                                },
+                                text = {
+                                    Text("정말 ${listItem.name} 목록을 삭제하시겠습니까?")
+                                },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.deleteList(listItem.listId, listItem.isFromFirestore)
+                                            showDeleteDialog = false
+                                        }
+                                    ) {
+                                        Text("삭제", color = Color.Red)
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(
+                                        onClick = { showDeleteDialog = false }
+                                    ) {
+                                        Text("취소")
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 에러 메시지 표시
+            uiState.errorMessage?.let { error ->
+                LaunchedEffect(error) {
+                    // TODO: Snackbar 표시
+                    viewModel.clearError()
+                }
+            }
         }
         
         // 추가하기 다이얼로그
@@ -61,13 +167,176 @@ fun ListScreen(
             AddItemDialog(
                 onDismiss = { showAddDialog = false },
                 onAddProduct = {
-                    // TODO: 상품 추가하기 화면으로 이동
+                    showAddDialog = false
                     onAddClick()
                 },
                 onAddPlace = {
                     showAddDialog = false
                     onNavigateToPlaceSearch()
                 }
+            )
+        }
+    }
+}
+
+@Composable
+fun ListCard(
+    status: String,
+    listName: String,
+    country: String,
+    placeNames: List<String>,
+    productCount: Int,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp, horizontal = 16.dp)
+    ) {
+        // 그림자용 Box
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp) // 우하향 이동
+                .background(
+                    color = Color(0x55000000), // 반투명 검정
+                    shape = RoundedCornerShape(12.dp)
+                )
+        )
+
+        // 실제 카드
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+            color = TertiaryBackground, // 카드 배경색
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    StatusTag(status)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = listName,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (country.isNotEmpty()) {
+                        CountryTag(country)
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "삭제",
+                            tint = Color.Red,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Column {
+                    if (placeNames.isNotEmpty()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.store),
+                                contentDescription = "상점",
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = placeNames.joinToString(", "),
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.bag),
+                            contentDescription = "상품",
+                            modifier = Modifier.size(18.dp),
+                            colorFilter = ColorFilter.tint(Color.Gray)
+                        )
+                        Text(
+                            text = if (productCount == 0) {
+                                "상품이 존재하지 않습니다"
+                            } else {
+                                "${productCount}개의 상품이 있습니다"
+                            },
+                            fontSize = 13.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StatusTag(status: String) {
+    val backgroundColor = when(status) {
+        "준비중" -> Color(0xFFFFA500)
+        "진행중" -> Color(0xFF28A745)
+        "완료" -> Color(0xFF555555)
+        else -> Color.Gray
+    }
+
+    Box(
+        modifier = Modifier
+            .background(backgroundColor, shape = RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = status,
+            fontSize = 12.sp,
+            color = Color.White,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun CountryTag(country: String) {
+    Box(
+        modifier = Modifier
+            .background(PrimaryBackground, shape = RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.country),
+                contentDescription = "국가",
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = country,
+                fontSize = 14.sp,
+                color = Color(0xD2000000),
+                fontWeight = FontWeight.Bold
             )
         }
     }

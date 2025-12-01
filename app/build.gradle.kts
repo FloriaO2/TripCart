@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
+    id("kotlin-kapt")
 }
 
 // .env 파일에서 API 키 읽기
@@ -99,6 +100,11 @@ dependencies {
 
     // Coil (이미지 업로드에 필요)
     implementation(libs.coil.compose)
+
+    // Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    kapt(libs.androidx.room.compiler)
 
     // Testing
     testImplementation(libs.junit)

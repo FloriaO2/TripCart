@@ -12,6 +12,7 @@ import com.google.android.libraries.places.api.model.AutocompletePrediction
 import com.google.android.libraries.places.api.model.AutocompleteSessionToken
 import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.api.net.FetchPhotoRequest
+import com.google.android.libraries.places.api.net.FetchPlaceRequest
 import com.google.android.libraries.places.api.net.FindAutocompletePredictionsRequest
 import com.google.android.libraries.places.api.net.PlacesClient
 import com.google.firebase.firestore.FirebaseFirestore
@@ -152,11 +153,7 @@ private val COUNTRY_TO_KOREAN = mapOf(
     "Jordan" to "요르단"
 )
 
-/*
- * 주소에서 국가를 추출하고 주소에서 제거
- * @param address 원본 주소
- * @return Pair<country (한국어 이름), addressWithoutCountry>
- */
+// 주소에서 국가를 추출하고 주소에서 제거
 private fun extractCountryFromAddress(address: String?): Pair<String?, String?> {
     if (address == null) return Pair(null, null)
     
@@ -204,7 +201,7 @@ data class PlaceUiState(
     val searchQuery: String = "",
     val predictions: List<AutocompletePrediction> = emptyList(),
     val searchError: String? = null,
-    val selectedPlace: PlaceDetails? = null, // 앞서 만들어놨던 PlaceDetails 사용!
+    val selectedPlace: PlaceDetails? = null,
     val errorMessage: String? = null,
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false
@@ -225,7 +222,7 @@ class PlaceViewModel(application: Application) : AndroidViewModel(application) {
         placesClient = Places.createClient(application)
     }
     
-    // @param query 검색어 이용해서 장소 검색 (Autocomplete 사용)
+    // 장소 검색 (Autocomplete 사용)
     fun searchPlaces(query: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
@@ -273,8 +270,9 @@ class PlaceViewModel(application: Application) : AndroidViewModel(application) {
      * 선택한 장소의 상세 정보 가져오기
      * @param placeId 장소 ID
      * @param autocompleteAddress Autocomplete에서 받은 주소 (앵간해선 한국어 지원)
+     * @param autocompleteName Autocomplete에서 받은 장소 이름 (한국어일 가능성이 높음)
      */
-    fun fetchPlaceDetails(placeId: String, autocompleteAddress: String? = null) {
+    fun fetchPlaceDetails(placeId: String, autocompleteAddress: String? = null, autocompleteName: String? = null) {
         if (placeId.isEmpty()) {
             _uiState.value = _uiState.value.copy(
                 errorMessage = "장소 ID가 비어있습니다."
@@ -303,7 +301,7 @@ class PlaceViewModel(application: Application) : AndroidViewModel(application) {
                     Place.Field.PHOTO_METADATAS
                 )
                 
-                val placeRequest = com.google.android.libraries.places.api.net.FetchPlaceRequest.newInstance(
+                val placeRequest = FetchPlaceRequest.newInstance(
                     placeId,
                     placeFields
                 )
@@ -312,7 +310,7 @@ class PlaceViewModel(application: Application) : AndroidViewModel(application) {
                 val place = placeResponse.place
                 
                 // Autocomplete 주소 = 장소 검색 결과 목록에서 보여주는 주소 (앵간해선 한국어)
-                // PLaces API 주소 = Places API에서 불러오는 상세 데이터 속 주소 (영어인 경우가 많음)
+                // Places API 주소 = Places API에서 불러오는 상세 데이터 속 주소 (영어인 경우가 많음)
                 // -> Autocomplete 주소를 우선 사용
                 //    Places API 주소는 Autocomplete 주소가 없을 때만 사용
                 val finalAddress = if (!autocompleteAddress.isNullOrEmpty()) {
@@ -320,6 +318,9 @@ class PlaceViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     place.address ?: ""
                 }
+                
+                // 장소 이름: Autocomplete 이름이 있으면 사용 (한국어일 가능성이 높음), 없으면 Places API 이름 사용
+                val finalName = autocompleteName ?: (place.name ?: "")
                 
                 //android.util.Log.d("PlaceViewModel", "Autocomplete address: $autocompleteAddress")
                 //android.util.Log.d("PlaceViewModel", "Places API address: ${place.address}")
@@ -349,7 +350,7 @@ class PlaceViewModel(application: Application) : AndroidViewModel(application) {
                 
                 val placeDetails = PlaceDetails(
                     placeId = place.id ?: "",
-                    name = place.name ?: "",
+                    name = finalName,
                     latitude = place.latLng?.latitude ?: 0.0,
                     longitude = place.latLng?.longitude ?: 0.0,
                     address = addressWithoutCountry,
@@ -371,6 +372,80 @@ class PlaceViewModel(application: Application) : AndroidViewModel(application) {
                     isLoading = false,
                     errorMessage = "장소 정보를 가져오는데 실패했습니다: ${e.message}"
                 )
+            }
+        }
+    }
+    
+    // 장소 중복 체크 후 리스트 선택 화면으로 이동
+    // Firestore에 이미 존재하면 그 데이터를 사용하고, 없으면 저장 후 사용
+    fun checkPlaceAndNavigate(placeDetails: PlaceDetails, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isSaving = true,
+                errorMessage = null,
+                saveSuccess = false
+            )
+            
+            try {
+                // placeId로 Firestore에서 조회
+                val placeDoc = try {
+                    db.collection("places").document(placeDetails.placeId).get().await()
+                } catch (e: Exception) {
+                    android.util.Log.e("PlaceViewModel", "Error checking duplicate place", e)
+                    null
+                }
+                
+                val finalPlaceDetails: PlaceDetails = if (placeDoc?.exists() == true) {
+                    // Firestore에 이미 존재하는 경우, Firestore의 데이터를 사용
+                    val data = placeDoc.data
+                    PlaceDetails(
+                        placeId = data?.get("placeId") as? String ?: placeDetails.placeId,
+                        name = data?.get("name") as? String ?: placeDetails.name,
+                        latitude = (data?.get("latitude") as? Double) ?: placeDetails.latitude,
+                        longitude = (data?.get("longitude") as? Double) ?: placeDetails.longitude,
+                        address = data?.get("address") as? String ?: placeDetails.address,
+                        country = data?.get("country") as? String ?: placeDetails.country,
+                        phoneNumber = data?.get("phoneNumber") as? String ?: placeDetails.phoneNumber,
+                        websiteUri = data?.get("websiteUri") as? String ?: placeDetails.websiteUri,
+                        openingHours = (data?.get("openingHours") as? List<*>)?.mapNotNull { it as? String } 
+                            ?: placeDetails.openingHours,
+                        photoBitmap = null // Firestore에는 사진이 저장되지 않으므로 null
+                    )
+                } else {
+                    // Firestore에 존재하지 않는 경우, Google Places API 데이터를 Firestore에 저장
+                    val placeData = hashMapOf(
+                        "placeId" to placeDetails.placeId,
+                        "name" to placeDetails.name,
+                        "latitude" to placeDetails.latitude,
+                        "longitude" to placeDetails.longitude,
+                        "address" to (placeDetails.address ?: ""),
+                        "country" to (placeDetails.country ?: ""),
+                        "phoneNumber" to (placeDetails.phoneNumber ?: ""),
+                        "websiteUri" to (placeDetails.websiteUri ?: ""),
+                        "openingHours" to (placeDetails.openingHours ?: emptyList<String>())
+                    )
+                    
+                    db.collection("places")
+                        .document(placeDetails.placeId)
+                        .set(placeData)
+                        .await()
+                    
+                    // 저장한 데이터를 그대로 사용
+                    placeDetails
+                }
+                
+                // 선택한 장소를 ViewModel에 저장 (Firestore의 데이터 또는 새로 저장한 데이터)
+                _uiState.value = _uiState.value.copy(
+                    isSaving = false,
+                    selectedPlace = finalPlaceDetails
+                )
+                onResult(true)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isSaving = false,
+                    errorMessage = "장소 확인에 실패했습니다: ${e.message}"
+                )
+                onResult(false)
             }
         }
     }

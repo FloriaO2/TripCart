@@ -1,6 +1,13 @@
 package com.example.tripcart.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -13,7 +20,12 @@ import com.example.tripcart.ui.screen.LoginScreen
 import com.example.tripcart.ui.screen.MapScreen
 import com.example.tripcart.ui.screen.MyPageScreen
 import com.example.tripcart.ui.screen.AddPlaceScreen
+import com.example.tripcart.ui.screen.AddPlaceToListScreen
 import com.google.firebase.auth.FirebaseAuth
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tripcart.ui.viewmodel.PlaceViewModel
+import com.example.tripcart.ui.viewmodel.PlaceDetails
+import com.example.tripcart.ui.viewmodel.ListViewModel
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -23,15 +35,23 @@ sealed class Screen(val route: String) {
     object MyPage : Screen("my_page")
     object AddPlace : Screen("add_place")
     object AddProduct : Screen("add_product")
+    object AddPlaceToList : Screen("add_place_to_list")
 }
 
 @Composable
 fun TripCartNavGraph(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    startDestination: String = Screen.Login.route
+    startDestination: String = Screen.Login.route,
+    listViewModel: ListViewModel? = null // 외부에서 전달받거나 내부에서 생성
 ) {
     val auth = FirebaseAuth.getInstance()
+    
+    // ListViewModel을 NavGraph 레벨에서 생성하여 공유 (전달받지 않은 경우)
+    val sharedListViewModel: ListViewModel = listViewModel ?: viewModel()
+    
+    // PlaceViewModel도 NavGraph 레벨에서 생성하여 공유
+    val sharedPlaceViewModel: PlaceViewModel = viewModel()
     
     // 로그인 상태 확인을 거쳐 시작 화면 결정
     val initialRoute = if (auth.currentUser != null) {
@@ -124,7 +144,11 @@ fun TripCartNavGraph(
                 },
                 onNavigateToPlaceSearch = {
                     navController.navigate(Screen.AddPlace.route)
-                }
+                },
+                onNavigateToListDetail = {
+                    // TODO: 리스트 상세 화면으로 이동
+                },
+                viewModel = sharedListViewModel
             )
         }
         
@@ -133,10 +157,48 @@ fun TripCartNavGraph(
                 onBack = {
                     navController.popBackStack()
                 },
-                onPlaceSelected = {
-                    navController.popBackStack()
-                }
+                onPlaceSelected = { placeDetails: PlaceDetails ->
+                    // PlaceViewModel에 선택한 장소가 이미 저장되어 있음 (checkPlaceAndNavigate에서 저장)
+                    // AddPlaceToListScreen에서 같은 ViewModel 인스턴스를 사용하여 접근
+                    navController.navigate(Screen.AddPlaceToList.route)
+                },
+                viewModel = sharedPlaceViewModel
             )
+        }
+        
+        composable(Screen.AddPlaceToList.route) {
+            // AddPlaceScreen과 같은 ViewModel 인스턴스 사용
+            // selectedPlace가 설정될 때까지 대기
+            val placeUiState by sharedPlaceViewModel.uiState.collectAsState()
+            val placeDetails = placeUiState.selectedPlace
+            
+            if (placeDetails == null) {
+                // 장소가 아직 선택되지 않았으면 로딩 표시
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                AddPlaceToListScreen(
+                    placeDetails = placeDetails,
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onComplete = {
+                        // 리스트 선택 완료 후 ListScreen으로 이동
+                        navController.navigate(Screen.List.route) {
+                            // 뒤로가기 스택에서 AddPlaceToList와 AddPlace 화면 제거
+                            popUpTo(Screen.List.route) {
+                                inclusive = false
+                            }
+                        }
+                    },
+                    listViewModel = sharedListViewModel, // NavGraph 레벨에서 생성한 ViewModel 공유
+                    placeViewModel = sharedPlaceViewModel
+                )
+            }
         }
         
         composable(Screen.AddProduct.route) {

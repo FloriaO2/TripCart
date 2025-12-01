@@ -33,6 +33,7 @@ import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.theme.SecondaryBackground
 import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.PlaceViewModel
+import com.example.tripcart.ui.viewmodel.PlaceDetails
 import kotlinx.coroutines.delay
 
 // 구글 맵 Places API를 사용하여 상점 검색 기능 구현
@@ -41,10 +42,15 @@ import kotlinx.coroutines.delay
 @Composable
 fun AddPlaceScreen(
     onBack: () -> Unit,
-    onPlaceSelected: () -> Unit,
+    onPlaceSelected: (PlaceDetails) -> Unit,
     viewModel: PlaceViewModel = viewModel()
 ) {
     val uiState = viewModel.uiState.collectAsState().value
+    
+    // 화면이 처음 표시될 때 선택된 장소 초기화
+    LaunchedEffect(Unit) {
+        viewModel.clearSelectedPlace()
+    }
     
     var searchQuery by remember { mutableStateOf("") }
     
@@ -162,20 +168,28 @@ fun AddPlaceScreen(
                 // 검색 결과 존재
                 } else if (uiState.predictions.isNotEmpty()) {
                     LazyColumn(
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(
+                                bottom = if (uiState.selectedPlace != null) 400.dp else 0.dp
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         items(uiState.predictions) { prediction ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .padding(horizontal = 16.dp, vertical = 4.dp)
                                     .clickable {
                                         // 장소 선택 시 상세 정보 가져오기
                                         val placeId = prediction.placeId
                                         if (placeId.isNotEmpty()) {
                                             // Autocomplete에서 받은 주소 정보 전달 (상점 이름 제외, 주소만)
                                             val address = prediction.getSecondaryText(null)?.toString() ?: ""
-                                            viewModel.fetchPlaceDetails(placeId, address)
+                                            // Autocomplete에서 받은 장소 이름 전달 (한국어일 가능성이 높음)
+                                            val name = prediction.getPrimaryText(null)?.toString() ?: ""
+                                            viewModel.fetchPlaceDetails(placeId, address, name)
                                         }
                                     },
                                 colors = CardDefaults.cardColors(
@@ -194,11 +208,21 @@ fun AddPlaceScreen(
                                     )
                                     if (prediction.getSecondaryText(null) != null) {
                                         Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = prediction.getSecondaryText(null).toString(),
-                                            fontSize = 14.sp,
-                                            color = Color.Gray
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Image(
+                                                painter = painterResource(id = R.drawable.map),
+                                                contentDescription = "지도",
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = prediction.getSecondaryText(null).toString(),
+                                                fontSize = 14.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -302,7 +326,8 @@ fun AddPlaceScreen(
                                     .fillMaxWidth()
                                     .height(200.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFE0E0E0)),
+                                    .background(Color(0xFFE0E0E0))
+                                    .padding(bottom = 12.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -327,16 +352,16 @@ fun AddPlaceScreen(
                                 value = it
                             )
                         }
-                        placeDetails.phoneNumber?.let {
+                        if (placeDetails.phoneNumber != null && placeDetails.phoneNumber.isNotEmpty()) {
                             DetailRow(
                                 icon = Icons.Default.Phone,
-                                value = it
+                                value = placeDetails.phoneNumber
                             )
                         }
-                        placeDetails.websiteUri?.let {
+                        if (placeDetails.websiteUri != null && placeDetails.websiteUri.isNotEmpty()) {
                             DetailRowWithDrawable(
                                 iconRes = R.drawable.link,
-                                value = it
+                                value = placeDetails.websiteUri
                             )
                         }
                         
@@ -367,7 +392,12 @@ fun AddPlaceScreen(
                             // 선택 버튼
                             Button(
                                 onClick = {
-                                    viewModel.savePlaceToFirestore(placeDetails)
+                                    // 바로 리스트 선택 화면으로 이동 (이미지 로딩 완료 여부와 관계없이)
+                                    onPlaceSelected(placeDetails)
+                                    // 백그라운드에서 중복 체크 및 저장 처리
+                                    viewModel.checkPlaceAndNavigate(placeDetails) { shouldNavigate ->
+                                        // 이미 화면 이동했으므로 여기서는 아무것도 하지 않음
+                                    }
                                 },
                                 modifier = Modifier.weight(1f),
                                 enabled = !uiState.isSaving,
@@ -403,19 +433,6 @@ fun AddPlaceScreen(
                 }
             }
             
-            // 저장 성공 시
-            if (uiState.saveSuccess) {
-                LaunchedEffect(Unit) {
-                    snackbarHostState.showSnackbar(
-                        message = "장소가 성공적으로 저장되었습니다.",
-                        duration = SnackbarDuration.Short
-                    )
-                    viewModel.clearSuccess()
-                    // 잠시 후 화면 닫기
-                    delay(1000)
-                    onPlaceSelected()
-                }
-            }
         }
     }
 }
