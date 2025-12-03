@@ -7,7 +7,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -211,6 +213,8 @@ fun TripCartNavGraph(
         composable(Screen.AddProduct.route) {
             AddProductScreen(
                 onBack = {
+                    // 뒤로가기 시 draftProduct 초기화하여 AddProductScreen 내부 데이터 리셋
+                    sharedProductViewModel.clearDraftProduct()
                     navController.popBackStack()
                 },
                 onProductSaved = { productDetails ->
@@ -227,14 +231,16 @@ fun TripCartNavGraph(
             val productUiState by sharedProductViewModel.uiState.collectAsState()
             val productDetails = productUiState.savedProduct
             
-            // savedProduct가 null이면 이전 화면으로 돌아가기
-            LaunchedEffect(productDetails) {
-                if (productDetails == null) {
+            // ListScreen에서 AddProductScreen 진입하면 잔여 데이터 없는 새 화면을 띄워줌
+            var isInitialLoad by remember { mutableStateOf<Boolean>(true) }
+            LaunchedEffect(Unit) {
+                if (isInitialLoad && productDetails == null) {
                     navController.popBackStack()
                 }
+                isInitialLoad = false
             }
             
-            if (productDetails == null) {
+            if (productDetails == null && isInitialLoad) {
                 // 상품이 아직 저장되지 않았으면 로딩 표시
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -242,16 +248,19 @@ fun TripCartNavGraph(
                 ) {
                     CircularProgressIndicator()
                 }
-            } else {
+            } else if (productDetails != null) {
                 AddProductToListScreen(
                     productDetails = productDetails,
                     onBack = {
+                        // 뒤로가기 시 draftProduct 데이터를 이용해 AddProductScreen에서의 입력 데이터를 복원
+                        // savedProduct는 Firebase Storage에 업로드된 이미지 url을 포함한 모든 정보를 가지고 있음
                         navController.popBackStack()
                     },
                     onComplete = {
                         // 리스트 선택 완료 후 ListScreen으로 이동
-                        // ProductViewModel의 savedProduct 초기화
+                        // ProductViewModel의 savedProduct와 draftProduct 초기화
                         sharedProductViewModel.clearSuccess()
+                        sharedProductViewModel.clearDraftProduct()
                         navController.navigate(Screen.List.route) {
                             // 뒤로가기 스택에서 AddProductToList와 AddProduct 화면 제거
                             popUpTo(Screen.List.route) {

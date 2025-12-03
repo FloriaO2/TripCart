@@ -11,15 +11,29 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
+
+// 입력 중인 상품 데이터 (임시 저장용)
+data class DraftProduct(
+    val productImages: List<android.net.Uri> = emptyList(),
+    val productName: String = "",
+    val productMemo: String = "",
+    val quantity: Int = 1,
+    val selectedCategory: String? = null,
+    val isPublic: Boolean = false
+)
 
 data class ProductUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
     val saveSuccess: Boolean = false,
-    val savedProduct: com.example.tripcart.ui.screen.ProductDetails? = null // 저장된 상품 정보
+    val savedProduct: com.example.tripcart.ui.screen.ProductDetails? = null, // 저장된 상품 정보
+    val draftProduct: DraftProduct = DraftProduct(), // 입력 중인 상품 데이터
+    val hasNavigatedToAddToList: Boolean = false // AddProductToListScreen으로 이동하는지 여부
 )
 
 class ProductViewModel(application: Application) : AndroidViewModel(application) {
@@ -30,9 +44,7 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     private val storage = FirebaseStorage.getInstance()
     private val auth = FirebaseAuth.getInstance()
     
-    /*
-     * 이미지 업로드 경로 타입
-     */
+    // 이미지 업로드 경로 타입
     enum class ImagePathType {
         PUBLIC,    // products/public/ - 모든 사용자 접근 가능
         USER,      // products/user/{userId}/ - 업로드한 사용자만 접근 가능
@@ -76,23 +88,24 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
         return uploadTask.storage.downloadUrl.await().toString()
     }
     
-    // 여러 이미지를 업로드하고 URL 리스트 반환
+    // 여러 이미지를 업로드하고 URL 리스트 반환 (병렬 처리)
     private suspend fun uploadImages(
         imageUris: List<Uri>,
         pathType: ImagePathType = ImagePathType.USER,
         listId: String? = null
-    ): List<String> {
-        return imageUris.map { uri ->
-            uploadImage(uri, pathType, listId)
+    ): List<String> = coroutineScope {
+        imageUris.map { uri: Uri ->
+            async<String> {
+                uploadImage(uri, pathType, listId)
+            }
+        }.map { deferred ->
+            deferred.await()
         }
     }
     
     /*
-     * 이미지를 한 경로에서 다른 경로로 복사
+     * 이미지를 다른 경로로 복사
      * 초대코드가 발급된 리스트의 경우 (products/user/{userId}/ -> products/list/{listId}/)
-     * @param sourceUrl 원본 이미지 URL
-     * @param targetListId 대상 리스트 ID
-     * @return 복사된 이미지의 새로운 URL
      */
     suspend fun copyImageToList(sourceUrl: String, targetListId: String): String {
         val imageId = UUID.randomUUID().toString()
@@ -109,14 +122,6 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     }
     
     // 상품 저장
-    /*
-     * @param productName 상품 이름
-     * @param productMemo 상품 메모
-     * @param quantity 구매할 수량
-     * @param category 상품 품목
-     * @param imageUris 상품 사진 로컬 URI 리스트 (Firebase Storage에 업로드하여 URL로 변환됨)
-     * @param isPublic 공개 여부
-     */
     fun saveProduct(
         productName: String,
         productMemo: String,
@@ -129,7 +134,8 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
             _uiState.value = _uiState.value.copy(
                 isSaving = true,
                 errorMessage = null,
-                saveSuccess = false
+                saveSuccess = false,
+                hasNavigatedToAddToList = false
             )
             
             try {
@@ -197,26 +203,31 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     fun clearSuccess() {
         _uiState.value = _uiState.value.copy(
             saveSuccess = false,
-            savedProduct = null
+            savedProduct = null,
+            hasNavigatedToAddToList = false
         )
     }
     
-    /*
-     * 리스트에 상품 이미지를 업로드 (LIST 경로 사용)
-     * @param imageUris 상품 사진 로컬 URI 리스트
-     * @param listId 리스트 ID
-     * @return 업로드된 이미지 URL 리스트
-     */
+    fun setHasNavigatedToAddToList(hasNavigated: Boolean) {
+        _uiState.value = _uiState.value.copy(hasNavigatedToAddToList = hasNavigated)
+    }
+    
+    // 입력 중인 상품 데이터 저장
+    fun saveDraftProduct(draftProduct: DraftProduct) {
+        _uiState.value = _uiState.value.copy(draftProduct = draftProduct)
+    }
+    
+    // 입력 중인 상품 데이터 초기화
+    fun clearDraftProduct() {
+        _uiState.value = _uiState.value.copy(draftProduct = DraftProduct())
+    }
+    
+    // 리스트에 상품 이미지 업로드 (LIST 경로 사용)
     suspend fun uploadImagesToList(imageUris: List<Uri>, listId: String): List<String> {
         return uploadImages(imageUris, pathType = ImagePathType.LIST, listId = listId)
     }
     
-    /*
-     * 초대코드가 발급된 리스트는 이미지들을 user 경로에서 list 경로로 복사
-     * @param imageUrls 원본 이미지 URL 리스트 (products/user/{userId}/ 경로)
-     * @param listId 대상 리스트 ID
-     * @return 복사된 이미지 URL 리스트 (products/list/{listId}/ 경로)
-     */
+    // 초대코드가 발급된 리스트는 이미지들을 user 경로에서 list 경로로 복사
     suspend fun copyImagesToList(imageUrls: List<String>, listId: String): List<String> {
         return imageUrls.map { url ->
             copyImageToList(url, listId)

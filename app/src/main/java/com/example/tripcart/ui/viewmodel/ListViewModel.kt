@@ -689,34 +689,36 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
             )
             listProductDao.insertProduct(productEntity)
             
-            // Firestore에 리스트 생성 (실패해도 Room DB에는 저장되었으므로 계속 진행)
-            try {
-                val listData = hashMapOf(
-                    "name" to listName,
-                    "status" to "준비중",
-                    "country" to "",
-                    "places" to emptyList<Any>(),
-                    "productCount" to 1,
-                    "userId" to userId
-                )
-                
-                db.collection("lists")
-                    .document(listId)
-                    .set(listData)
-                    .await()
-                
-                // 로컬 DB 동기화 상태 업데이트
-                listDao.updateList(listEntity.copy(firestoreSynced = true))
-            } catch (e: Exception) {
-                // Firestore 저장 실패해도 Room DB에는 저장되었으므로 계속 진행
+            // Firestore에 리스트 생성 (비동기로 처리함으로써 블로킹 방지)
+            viewModelScope.launch {
+                try {
+                    val listData = hashMapOf(
+                        "name" to listName,
+                        "status" to "준비중",
+                        "country" to "",
+                        "places" to emptyList<Any>(),
+                        "productCount" to 1,
+                        "userId" to userId
+                    )
+                    
+                    db.collection("lists")
+                        .document(listId)
+                        .set(listData)
+                        .await()
+                    
+                    // 로컬 DB 동기화 상태 업데이트
+                    listDao.updateList(listEntity.copy(firestoreSynced = true))
+                } catch (e: Exception) {
+                    // Firestore 저장 실패해도 Room DB에는 저장되었으므로 계속 진행
+                }
             }
             
-            // 리스트 목록 새로고침
-            loadLists()
-            
-            // 새로 생성한 리스트를 자동으로 선택 상태로 만들기
+            // 리스트 목록 새로고침 (비동기로 처리)
             viewModelScope.launch {
-                kotlinx.coroutines.delay(500)
+                loadLists()
+                
+                // 새로 생성한 리스트를 자동으로 선택 상태로 만들기
+                kotlinx.coroutines.delay(300)
                 selectList(listId)
             }
             

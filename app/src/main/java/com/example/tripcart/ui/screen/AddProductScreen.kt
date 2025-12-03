@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,14 +69,51 @@ fun AddProductScreen(
     val uiState = viewModel.uiState.collectAsState().value
     val context = LocalContext.current
     
-    // 입력 상태
-    var productImages by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    var productName by remember { mutableStateOf("") }
-    var productMemo by remember { mutableStateOf("") }
-    var quantity by remember { mutableStateOf(1) }
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
-    var isPublic by remember { mutableStateOf(false) } // 기본값: 비공개
+    // ViewModel에서 저장된 draftProduct 불러오기
+    val draftProduct = uiState.draftProduct
+    
+    // 입력 상태 - ViewModel의 draftProduct로 초기화
+    var productImages by remember { mutableStateOf(draftProduct.productImages) }
+    var productName by remember { mutableStateOf(draftProduct.productName) }
+    var productMemo by remember { mutableStateOf(draftProduct.productMemo) }
+    var quantity by remember { mutableStateOf(draftProduct.quantity) }
+    var selectedCategory by remember { mutableStateOf(draftProduct.selectedCategory) }
+    var isPublic by remember { mutableStateOf(draftProduct.isPublic) }
     var showCategoryDialog by remember { mutableStateOf(false) }
+    
+    // draftProduct가 변경되면 입력 필드 업데이트 (뒤로가기 시 복원)
+    LaunchedEffect(draftProduct) {
+        if (productImages != draftProduct.productImages ||
+            productName != draftProduct.productName ||
+            productMemo != draftProduct.productMemo ||
+            quantity != draftProduct.quantity ||
+            selectedCategory != draftProduct.selectedCategory ||
+            isPublic != draftProduct.isPublic) {
+            productImages = draftProduct.productImages
+            productName = draftProduct.productName
+            productMemo = draftProduct.productMemo
+            quantity = draftProduct.quantity
+            selectedCategory = draftProduct.selectedCategory
+            isPublic = draftProduct.isPublic
+        }
+    }
+    
+    // ViewModel에 입력 값 저장
+    LaunchedEffect(productImages, productName, productMemo, quantity, selectedCategory, isPublic) {
+        val currentDraft = com.example.tripcart.ui.viewmodel.DraftProduct(
+            productImages = productImages,
+            productName = productName,
+            productMemo = productMemo,
+            quantity = quantity,
+            selectedCategory = selectedCategory,
+            isPublic = isPublic
+        )
+        
+        // 현재 draftProduct와 입력 값이 다를 때만 ViewModel에 저장 - 무한 루프 방지!
+        if (currentDraft != draftProduct) {
+            viewModel.saveDraftProduct(currentDraft)
+        }
+    }
     
     // 공개 여부 활성화 조건 체크
     val canSetPublic = productImages.isNotEmpty() && 
@@ -535,9 +573,14 @@ fun AddProductScreen(
         }
         
         // 저장 성공 시 상품 정보를 전달하고 AddProductToListScreen으로 이동
+        // saveSuccess가 true이고 hasNavigatedToAddToList가 false일 때만 실행
         LaunchedEffect(uiState.saveSuccess, uiState.savedProduct) {
-            if (uiState.saveSuccess && uiState.savedProduct != null) {
-                kotlinx.coroutines.delay(500)
+            // saveSuccess가 true이고, savedProduct가 있고, 아직 네비게이션하지 않았을 때만 실행
+            if (uiState.saveSuccess && uiState.savedProduct != null && !uiState.hasNavigatedToAddToList) {
+                // 플래그를 먼저 설정하여 재트리거 방지
+                viewModel.setHasNavigatedToAddToList(true)
+                // 짧은 딜레이로 UI 업데이트 후 네비게이션
+                kotlinx.coroutines.delay(100)
                 val savedProduct = uiState.savedProduct!!
                 // clearSuccess()는 AddProductToListScreen에서 완료 후 호출하도록 함
                 // savedProduct를 유지하기 위해 여기서는 호출하지 않음
