@@ -62,7 +62,7 @@ val PRODUCT_CATEGORIES = listOf(
 @Composable
 fun AddProductScreen(
     onBack: () -> Unit,
-    onProductSaved: () -> Unit,
+    onProductSaved: (com.example.tripcart.ui.screen.ProductDetails) -> Unit,
     viewModel: ProductViewModel = viewModel()
 ) {
     val uiState = viewModel.uiState.collectAsState().value
@@ -534,12 +534,14 @@ fun AddProductScreen(
             )
         }
         
-        // 저장 성공 시 화면 닫기
-        LaunchedEffect(uiState.saveSuccess) {
-            if (uiState.saveSuccess) {
+        // 저장 성공 시 상품 정보를 전달하고 AddProductToListScreen으로 이동
+        LaunchedEffect(uiState.saveSuccess, uiState.savedProduct) {
+            if (uiState.saveSuccess && uiState.savedProduct != null) {
                 kotlinx.coroutines.delay(500)
-                viewModel.clearSuccess()
-                onProductSaved()
+                val savedProduct = uiState.savedProduct!!
+                // clearSuccess()는 AddProductToListScreen에서 완료 후 호출하도록 함
+                // savedProduct를 유지하기 위해 여기서는 호출하지 않음
+                onProductSaved(savedProduct)
             }
         }
     }

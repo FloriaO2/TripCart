@@ -25,13 +25,13 @@ interface ListDao {
     @Query("SELECT * FROM lists WHERE listId = :listId")
     suspend fun getListById(listId: String): ListEntity?
     
-    // 리스트 저장 (중복 시 덮어쓰기 -> 리스트 업데이트도 이 메서드를 통해 구현)
-    // 리스트 업데이트 시
-    // 1. getListById()로 기존 데이터 불러오기
-    // 2. .copy()로 원하는 필드만 수정
-    // 3. insertList()로 저장 (REPLACE 전략으로 자동 덮어쓰기)
+    // 리스트 저장 (같은 키일 경우 덮어쓰기! 덮어쓸 땐 DELETE + INSERT)
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertList(list: ListEntity)
+    
+    // 리스트 업데이트 (UPDATE만 수행)
+    @Update
+    suspend fun updateList(list: ListEntity)
     
     // 리스트 삭제 (ID 이용)
     @Query("DELETE FROM lists WHERE listId = :listId")

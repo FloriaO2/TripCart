@@ -18,7 +18,8 @@ data class ProductUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
-    val saveSuccess: Boolean = false
+    val saveSuccess: Boolean = false,
+    val savedProduct: com.example.tripcart.ui.screen.ProductDetails? = null // 저장된 상품 정보
 )
 
 class ProductViewModel(application: Application) : AndroidViewModel(application) {
@@ -146,8 +147,12 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                     emptyList()
                 }
                 
+                // 상품 고유 ID 생성
+                val productId = UUID.randomUUID().toString()
+                
                 // 공개 상품인 경우 products 컬렉션에 저장 (productName, category, imageUrls만)
                 // productId는 Firestore 문서 ID로 자동 생성됨
+                var firestoreProductId: String? = null
                 if (isPublic) {
                     val productData = hashMapOf(
                         "productName" to productName,
@@ -157,13 +162,24 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                     val documentRef = db.collection("products")
                         .add(productData)
                         .await()
-                    // documentRef.id가 productId가 됨 (나중에 리스트에서 사용)
+                    firestoreProductId = documentRef.id // Firestore 문서 ID
                 }
-                // 비공개 상품은 추후 로컬 DB에 저장 (현재는 구현하지 않음)
+                
+                // 저장된 상품 정보 저장
+                val savedProduct = com.example.tripcart.ui.screen.ProductDetails(
+                    id = productId,
+                    productName = productName,
+                    category = category,
+                    imageUrls = imageUrls,
+                    quantity = quantity,
+                    note = productMemo.ifBlank { null },
+                    productId = firestoreProductId
+                )
                 
                 _uiState.value = _uiState.value.copy(
                     isSaving = false,
-                    saveSuccess = true
+                    saveSuccess = true,
+                    savedProduct = savedProduct
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -179,7 +195,10 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     }
     
     fun clearSuccess() {
-        _uiState.value = _uiState.value.copy(saveSuccess = false)
+        _uiState.value = _uiState.value.copy(
+            saveSuccess = false,
+            savedProduct = null
+        )
     }
     
     /*

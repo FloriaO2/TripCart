@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -21,6 +22,8 @@ import com.example.tripcart.ui.screen.MapScreen
 import com.example.tripcart.ui.screen.MyPageScreen
 import com.example.tripcart.ui.screen.AddPlaceScreen
 import com.example.tripcart.ui.screen.AddPlaceToListScreen
+import com.example.tripcart.ui.screen.AddProductToListScreen
+import com.example.tripcart.ui.viewmodel.ProductViewModel
 import com.google.firebase.auth.FirebaseAuth
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tripcart.ui.viewmodel.PlaceViewModel
@@ -36,6 +39,7 @@ sealed class Screen(val route: String) {
     object AddPlace : Screen("add_place")
     object AddProduct : Screen("add_product")
     object AddPlaceToList : Screen("add_place_to_list")
+    object AddProductToList : Screen("add_product_to_list")
 }
 
 @Composable
@@ -52,6 +56,9 @@ fun TripCartNavGraph(
     
     // PlaceViewModel도 NavGraph 레벨에서 생성하여 공유
     val sharedPlaceViewModel: PlaceViewModel = viewModel()
+    
+    // ProductViewModel도 NavGraph 레벨에서 생성하여 공유
+    val sharedProductViewModel: ProductViewModel = viewModel()
     
     // 로그인 상태 확인을 거쳐 시작 화면 결정
     val initialRoute = if (auth.currentUser != null) {
@@ -206,10 +213,56 @@ fun TripCartNavGraph(
                 onBack = {
                     navController.popBackStack()
                 },
-                onProductSaved = {
+                onProductSaved = { productDetails ->
+                    // 상품 저장 후 AddProductToListScreen으로 이동
+                    // ProductViewModel에 저장된 상품 정보를 사용
+                    navController.navigate(Screen.AddProductToList.route)
+                },
+                viewModel = sharedProductViewModel
+            )
+        }
+        
+        composable(Screen.AddProductToList.route) {
+            // ProductViewModel에서 저장된 상품 정보 가져오기
+            val productUiState by sharedProductViewModel.uiState.collectAsState()
+            val productDetails = productUiState.savedProduct
+            
+            // savedProduct가 null이면 이전 화면으로 돌아가기
+            LaunchedEffect(productDetails) {
+                if (productDetails == null) {
                     navController.popBackStack()
                 }
-            )
+            }
+            
+            if (productDetails == null) {
+                // 상품이 아직 저장되지 않았으면 로딩 표시
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                AddProductToListScreen(
+                    productDetails = productDetails,
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onComplete = {
+                        // 리스트 선택 완료 후 ListScreen으로 이동
+                        // ProductViewModel의 savedProduct 초기화
+                        sharedProductViewModel.clearSuccess()
+                        navController.navigate(Screen.List.route) {
+                            // 뒤로가기 스택에서 AddProductToList와 AddProduct 화면 제거
+                            popUpTo(Screen.List.route) {
+                                inclusive = false
+                            }
+                        }
+                    },
+                    listViewModel = sharedListViewModel,
+                    productViewModel = sharedProductViewModel
+                )
+            }
         }
         
         composable(Screen.Map.route) {
