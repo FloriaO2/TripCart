@@ -326,10 +326,10 @@ fun AddPlaceScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .padding(bottom = 12.dp)
                                     .height(200.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFE0E0E0))
-                                    .padding(bottom = 12.dp),
+                                    .background(Color(0xFFE0E0E0)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
