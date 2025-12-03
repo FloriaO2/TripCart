@@ -105,7 +105,7 @@ fun AppBottomBar(
                                         if (isSelected) {
                                             PrimaryAccent
                                         } else {
-                                            Color.Black.copy(alpha = 0.6f)
+                                            Color.Black.copy(alpha = 0.3f)
                                         }
                                     )
                                 )
@@ -118,7 +118,7 @@ fun AppBottomBar(
                                     tint = if (isSelected) {
                                         PrimaryAccent
                                     } else {
-                                        Color.Black.copy(alpha = 0.6f)
+                                        Color.Black.copy(alpha = 0.3f)
                                     }
                                 )
                             }

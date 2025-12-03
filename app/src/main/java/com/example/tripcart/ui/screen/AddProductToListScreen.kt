@@ -524,25 +524,30 @@ private fun SelectableListItemCardForProduct(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Column {
-                    if (listItem.places.isNotEmpty()) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.store),
-                                contentDescription = "상점",
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = listItem.places.map { it.name }.joinToString(", "),
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 15.sp,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                color = Color(0xFF666666)
-                            )
-                        }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.store),
+                            contentDescription = "상점",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = if (listItem.places.isNotEmpty()) {
+                                listItem.places.map { it.name }.joinToString(", ")
+                            } else {
+                                "상점이 없습니다"
+                            },
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            color = if (listItem.places.isNotEmpty()) {
+                                Color(0xFF333333)
+                            } else {
+                                Color.Gray
+                            }
+                        )
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -552,17 +557,31 @@ private fun SelectableListItemCardForProduct(
                             painter = painterResource(id = R.drawable.bag),
                             contentDescription = "상품",
                             modifier = Modifier.size(18.dp),
-                            colorFilter = ColorFilter.tint(Color.Gray)
+                            colorFilter = ColorFilter.tint(
+                                if (listItem.productCount == 0) Color.Gray else Color(0xFF333333)
+                            )
                         )
-                        Text(
-                            text = if (listItem.productCount == 0) {
-                                "상품이 존재하지 않습니다"
-                            } else {
-                                "${listItem.productCount}개의 상품이 있습니다"
-                            },
-                            fontSize = 13.sp,
-                            color = Color.Gray
-                        )
+                        if (listItem.productCount == 0) {
+                            Text(
+                                text = "상품이 존재하지 않습니다",
+                                fontSize = 13.sp,
+                                color = Color.Gray
+                            )
+                        } else {
+                            Row {
+                                Text(
+                                    text = "${listItem.productCount}개",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF333333)
+                                )
+                                Text(
+                                    text = "의 상품이 있습니다",
+                                    fontSize = 13.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
                     }
                 }
             }
