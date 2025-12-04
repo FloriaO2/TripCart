@@ -9,6 +9,8 @@ import com.example.tripcart.data.local.entity.*
 import com.example.tripcart.ui.viewmodel.PlaceDetails
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.QueryDocumentSnapshot
+import com.google.firebase.firestore.DocumentSnapshot
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
@@ -86,7 +88,12 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 
-                mergedLists.values.toList()
+                // 정렬: 1) Room DB 리스트 먼저, 2) Firestore 리스트 나중에
+                // 각 그룹 내에서는 이름 순으로 정렬
+                mergedLists.values.toList().sortedWith(
+                    compareBy<Pair<ListEntity, Boolean>> { it.second } // false(Room DB) 먼저, true(Firestore) 나중
+                        .thenBy { it.first.name } // 이름 순으로 정렬
+                )
             }.collect { mergedLists ->
                 // 각 리스트에 대한 정보를 변환 (추후 Firestore 연동 확장 시 필요)
                 val listItems = mergedLists.map { (list, isFromFirestore) ->
@@ -118,6 +125,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     // 실시간 리스너를 이용해 Firestore에서 리스트를 실시간 Flow로 가져오기
+    // ownerId 또는 sharedWith에 포함된 리스트를 모두 가져옴
     private fun getFirestoreListsFlow(): Flow<List<ListEntity>> = callbackFlow {
         val userId = auth.currentUser?.uid
         if (userId == null) {
@@ -126,54 +134,82 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
             return@callbackFlow
         }
         
-        val listenerRegistration = db.collection("lists")
-            .whereEqualTo("userId", userId)
+        val mergedLists = mutableMapOf<String, ListEntity>()
+        
+        // ownerId로 필터링한 리스트
+        val ownerListener = db.collection("lists")
+            .whereEqualTo("ownerId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    trySend(emptyList())
+                    android.util.Log.e("ListViewModel", "ownerId 리스트 가져오기 실패: ${error.message}", error)
                     return@addSnapshotListener
                 }
                 
-                if (snapshot != null) {
-                    val firestoreLists = snapshot.documents.map { doc ->
-                        val listId = doc.id
-                        val name = doc.getString("name") ?: ""
-                        val status = doc.getString("status") ?: "준비중"
-                        val country = doc.getString("country")
-                        val productCount = (doc.getLong("productCount") ?: doc.get("productCount") as? Number)?.toInt() ?: 0
-                        // Firestore의 places 배열: [{"name": "...", "placeId": "..."}]
-                        val placesList = (doc.get("places") as? List<*>) ?: emptyList<Any?>()
-                        val places = placesList.mapNotNull { placeMap ->
-                            when (placeMap) {
-                                is Map<*, *> -> {
-                                    val placeName = placeMap["name"] as? String
-                                    val placeId = placeMap["placeId"] as? String
-                                    if (placeName != null && placeId != null) {
-                                        Place(name = placeName, placeId = placeId)
-                                    } else null
-                                }
-                                else -> null
-                            }
-                        }
-                        
-                        ListEntity(
-                            listId = listId,
-                            name = name,
-                            status = status,
-                            country = country,
-                            places = places,  // List<Place> 객체 리스트
-                            productCount = productCount,
-                            firestoreSynced = true
-                        )
-                    }
-                    trySend(firestoreLists)
+                snapshot?.documents?.forEach { doc ->
+                    val listEntity = parseListDocument(doc)
+                    mergedLists[listEntity.listId] = listEntity
                 }
+                
+                // 병합된 리스트 전송
+                trySend(mergedLists.values.toList())
+            }
+        
+        // sharedWith 배열에 포함된 리스트
+        val sharedListener = db.collection("lists")
+            .whereArrayContains("sharedWith", userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    android.util.Log.e("ListViewModel", "sharedWith 리스트 가져오기 실패: ${error.message}", error)
+                    return@addSnapshotListener
+                }
+                
+                snapshot?.documents?.forEach { doc ->
+                    val listEntity = parseListDocument(doc)
+                    mergedLists[listEntity.listId] = listEntity
+                }
+                
+                // 병합된 리스트 전송
+                trySend(mergedLists.values.toList())
             }
         
         // Flow가 취소될 때 리스너 해제
         awaitClose {
-            listenerRegistration.remove()
+            ownerListener.remove()
+            sharedListener.remove()
         }
+    }
+    
+    // Firestore 문서를 ListEntity로 변환하는 헬퍼 함수
+    private fun parseListDocument(doc: DocumentSnapshot): ListEntity {
+        val listId = doc.id
+        val name = doc.getString("name") ?: ""
+        val status = doc.getString("status") ?: "준비중"
+        val country = doc.getString("country")
+        val productCount = (doc.getLong("productCount") ?: doc.get("productCount") as? Number)?.toInt() ?: 0
+        // Firestore의 places 배열: [{"name": "...", "placeId": "..."}]
+        val placesList = (doc.get("places") as? List<*>) ?: emptyList<Any?>()
+        val places = placesList.mapNotNull { placeMap ->
+            when (placeMap) {
+                is Map<*, *> -> {
+                    val placeName = placeMap["name"] as? String
+                    val placeId = placeMap["placeId"] as? String
+                    if (placeName != null && placeId != null) {
+                        Place(name = placeName, placeId = placeId)
+                    } else null
+                }
+                else -> null
+            }
+        }
+        
+        return ListEntity(
+            listId = listId,
+            name = name,
+            status = status,
+            country = country,
+            places = places,  // List<Place> 객체 리스트
+            productCount = productCount,
+            firestoreSynced = true
+        )
     }
     
     // Firestore에서 리스트 동기화
@@ -181,46 +217,34 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         val userId = auth.currentUser?.uid ?: return
         
         try {
-            val listsSnapshot = db.collection("lists")
-                .whereEqualTo("userId", userId)
+            // ownerId로 필터링한 리스트
+            val ownerListsSnapshot = db.collection("lists")
+                .whereEqualTo("ownerId", userId)
                 .get()
                 .await()
             
-            listsSnapshot.documents.forEach { doc ->
-                val listId = doc.id
-                val name = doc.getString("name") ?: ""
-                val status = doc.getString("status") ?: "준비중"
-                val country = doc.getString("country")
-                val productCount = (doc.getLong("productCount") ?: doc.get("productCount") as? Number)?.toInt() ?: 0
-                // Firestore의 places 배열: [{"name": "...", "placeId": "..."}]
-                val placesList = (doc.get("places") as? List<*>) ?: emptyList<Any?>()
-                val places = placesList.mapNotNull { placeMap ->
-                    when (placeMap) {
-                        is Map<*, *> -> {
-                            val placeName = placeMap["name"] as? String
-                            val placeId = placeMap["placeId"] as? String
-                            if (placeName != null && placeId != null) {
-                                Place(name = placeName, placeId = placeId)
-                            } else null
-                        }
-                        else -> null
-                    }
-                }
+            // sharedWith 배열에 포함된 리스트
+            val sharedListsSnapshot = db.collection("lists")
+                .whereArrayContains("sharedWith", userId)
+                .get()
+                .await()
+            
+            // 두 쿼리 결과를 병합하고 중복 제거
+            val mergedLists = mutableMapOf<String, DocumentSnapshot>()
+            
+            ownerListsSnapshot.documents.forEach { doc ->
+                mergedLists[doc.id] = doc
+            }
+            
+            sharedListsSnapshot.documents.forEach { doc ->
+                mergedLists[doc.id] = doc
+            }
+            
+            mergedLists.values.forEach { doc ->
+                val listEntity = parseListDocument(doc)
                 
-                // 로컬 DB에 리스트 저장 (places 필드에 Place 객체 리스트 저장)
-                // 상품은 Firestore 서브컬렉션에서만 관리, Room DB 저장 제거
-                val listEntity = ListEntity(
-                    listId = listId,
-                    name = name,
-                    status = status,
-                    country = country,
-                    places = places,  // List<Place> 객체 리스트
-                    productCount = productCount,  // Firestore에서 가져온 상품 개수
-                    firestoreSynced = true
-                )
+                // 로컬 DB에 리스트 저장
                 listDao.insertList(listEntity)
-                
-                // 상품은 Firestore의 lists/{listId}/products 서브컬렉션에서만 관리
             }
         } catch (e: Exception) {
             // Firestore 동기화 실패
@@ -407,7 +431,9 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     "country" to (placeDetails.country ?: ""),
                     "places" to listOf(hashMapOf("name" to placeDetails.name, "placeId" to placeDetails.placeId)),
                     "productCount" to 0,  // 새 리스트는 상품 개수 0
-                    "userId" to userId
+                    "ownerId" to userId,
+                    "sharedWith" to emptyList<String>(),
+                    "right" to "read"
                 )
                 
                 db.collection("lists")
@@ -443,21 +469,21 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteList(listId: String, isFromFirestore: Boolean) {
         viewModelScope.launch {
             try {
-                if (isFromFirestore) {
-                    // Firestore 리스트 삭제
-                    val userId = auth.currentUser?.uid
-                    if (userId != null) {
-                        db.collection("users")
-                            .document(userId)
-                            .collection("lists")
-                            .document(listId)
-                            .delete()
-                            .await()
-                    }
-                } else {
-                    // Room DB 리스트 삭제
-                    // 리스트 삭제
+                // Firestore에서 삭제 시도 (없으면 패스)
+                try {
+                    db.collection("lists")
+                        .document(listId)
+                        .delete()
+                        .await()
+                } catch (e: Exception) {
+                    // Firestore에 없으면 패스
+                }
+                
+                // Room DB에서 삭제 시도 (없으면 패스)
+                try {
                     listDao.deleteListById(listId)
+                } catch (e: Exception) {
+                    // Room DB에 없으면 패스
                 }
                 
                 // 리스트 목록 다시 로드
@@ -698,7 +724,9 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                         "country" to "",
                         "places" to emptyList<Any>(),
                         "productCount" to 1,
-                        "userId" to userId
+                        "ownerId" to userId,
+                        "sharedWith" to emptyList<String>(),
+                        "right" to "read"
                     )
                     
                     db.collection("lists")
@@ -723,6 +751,70 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
             }
             
             Result.success(listId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    // 리스트 상세 정보 가져오기 (리스트 정보 + 상품 목록)
+    suspend fun getListDetail(listId: String): ListEntity? {
+        return try {
+            listDao.getListById(listId)
+        } catch (e: Exception) {
+            android.util.Log.e("ListViewModel", "Error getting list detail", e)
+            null
+        }
+    }
+    
+    // 특정 리스트의 상품 목록 가져오기 (Flow)
+    fun getProductsByListId(listId: String): Flow<List<ListProductEntity>> {
+        return listProductDao.getProductsByListId(listId)
+    }
+    
+    // 상품 상태(bought) 업데이트
+    suspend fun updateProductBoughtStatus(productId: String, listId: String, bought: String): Result<Unit> {
+        return try {
+            val product = listProductDao.getProductById(productId, listId)
+            if (product != null) {
+                val updatedProduct = product.copy(bought = bought)
+                listProductDao.updateProduct(updatedProduct)
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("상품을 찾을 수 없습니다."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    // 리스트 상태(status) 업데이트
+    suspend fun updateListStatus(listId: String, status: String): Result<Unit> {
+        return try {
+            val list = listDao.getListById(listId)
+            if (list != null) {
+                val updatedList = list.copy(status = status)
+                listDao.updateList(updatedList)
+                
+                // Firestore에도 업데이트
+                try {
+                    val listDoc = db.collection("lists").document(listId).get().await()
+                    if (listDoc.exists()) {
+                        db.collection("lists")
+                            .document(listId)
+                            .update("status", status)
+                            .await()
+                    }
+                } catch (e: Exception) {
+                    // Firestore 업데이트 실패해도 Room DB에는 반영됨
+                }
+                
+                // 리스트 목록 새로고침
+                loadLists()
+                
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("리스트를 찾을 수 없습니다."))
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -13,12 +13,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.tripcart.ui.screen.AddProductScreen
 import com.example.tripcart.ui.screen.HomeScreen
 import com.example.tripcart.ui.screen.ListScreen
+import com.example.tripcart.ui.screen.ListDetailScreen
 import com.example.tripcart.ui.screen.LoginScreen
 import com.example.tripcart.ui.screen.MapScreen
 import com.example.tripcart.ui.screen.MyPageScreen
@@ -36,6 +39,9 @@ sealed class Screen(val route: String) {
     object Login : Screen("login")
     object Home : Screen("home")
     object List : Screen("list")
+    object ListDetail : Screen("list_detail/{listId}") {
+        fun createRoute(listId: String) = "list_detail/$listId"
+    }
     object Map : Screen("map")
     object MyPage : Screen("my_page")
     object AddPlace : Screen("add_place")
@@ -154,8 +160,33 @@ fun TripCartNavGraph(
                 onNavigateToPlaceSearch = {
                     navController.navigate(Screen.AddPlace.route)
                 },
-                onNavigateToListDetail = {
-                    // TODO: 리스트 상세 화면으로 이동
+                onNavigateToListDetail = { listId ->
+                    navController.navigate(Screen.ListDetail.createRoute(listId))
+                },
+                viewModel = sharedListViewModel
+            )
+        }
+        
+        composable(
+            route = Screen.ListDetail.route,
+            arguments = listOf(
+                navArgument("listId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val listId = backStackEntry.arguments?.getString("listId") ?: ""
+            ListDetailScreen(
+                listId = listId,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onEditList = {
+                    // TODO: 리스트 편집 화면으로 이동
+                },
+                onEditProduct = { productId, listId ->
+                    // TODO: 상품 편집 화면으로 이동
+                },
+                onGroupAddClick = {
+                    // TODO: 그룹 추가 기능 구현
                 },
                 viewModel = sharedListViewModel
             )
