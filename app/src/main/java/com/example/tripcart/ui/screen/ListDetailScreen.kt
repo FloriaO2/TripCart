@@ -890,8 +890,8 @@ fun StatusBadge(
 ) {
     val backgroundColor = when(status) {
         "준비중" -> Color(0xFFFFA500)
-        "진행중" -> Color(0xFF28A745)
-        "완료" -> Color(0xFF555555)
+        "진행중" -> Color(0xFF5DADE2)
+        "완료" -> Color(0xFF7C9A52)
         else -> Color.Gray
     }
     

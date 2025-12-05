@@ -40,6 +40,7 @@ sealed class Screen(val route: String) {
     object Home : Screen("home")
     object List : Screen("list")
     object ListDetail : Screen("list_detail/{listId}") {
+        // 지도에서 리스트 상세 페이지로 이동할 때 사용!
         fun createRoute(listId: String) = "list_detail/$listId"
     }
     object Map : Screen("map")
@@ -334,7 +335,11 @@ fun TripCartNavGraph(
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Map.route) { inclusive = false }
                     }
-                }
+                },
+                onNavigateToListDetail = { listId ->
+                    navController.navigate(Screen.ListDetail.createRoute(listId))
+                },
+                listViewModel = sharedListViewModel
             )
         }
         
