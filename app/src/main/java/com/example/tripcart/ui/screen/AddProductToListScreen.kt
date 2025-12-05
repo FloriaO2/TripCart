@@ -104,30 +104,26 @@ fun AddProductToListScreen(
                                 isProcessing = true
                                 val selectedLists = uiState.lists.filter { it.isSelected }
                                 
-                                if (selectedLists.isEmpty()) {
-                                    snackbarHostState.showSnackbar(
-                                        message = "리스트를 선택해주세요",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    isProcessing = false
-                                    return@launch
-                                }
-                                
-                                val result = listViewModel.addProductToSelectedLists(productDetails)
-                                
-                                if (result.isSuccess) {
-                                    snackbarHostState.showSnackbar(
-                                        message = "상품이 추가되었습니다",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    // 잠시 후 화면 닫기
-                                    kotlinx.coroutines.delay(1000)
-                                    onComplete()
+                                if (selectedLists.isNotEmpty()) {
+                                    val result = listViewModel.addProductToSelectedLists(productDetails)
+                                    
+                                    if (result.isSuccess) {
+                                        snackbarHostState.showSnackbar(
+                                            message = "상품이 추가되었습니다",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        // 잠시 후 화면 닫기
+                                        kotlinx.coroutines.delay(1000)
+                                        onComplete()
+                                    } else {
+                                        snackbarHostState.showSnackbar(
+                                            message = result.exceptionOrNull()?.message ?: "오류가 발생했습니다",
+                                            duration = SnackbarDuration.Long
+                                        )
+                                    }
                                 } else {
-                                    snackbarHostState.showSnackbar(
-                                        message = result.exceptionOrNull()?.message ?: "오류가 발생했습니다",
-                                        duration = SnackbarDuration.Long
-                                    )
+                                    // 리스트를 선택하지 않았으면 그냥 돌아가기
+                                    onComplete()
                                 }
                                 isProcessing = false
                             }
