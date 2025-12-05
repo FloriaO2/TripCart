@@ -53,6 +53,8 @@ import androidx.compose.ui.res.painterResource
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import com.example.tripcart.ui.components.InviteCodeDialog
+import com.example.tripcart.ui.components.InviteCodeDisplayDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,8 +74,20 @@ fun ListDetailScreen(
     var placesDetails by remember { mutableStateOf<List<PlaceDetails>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     
-    // 상품 목록
-    val productsFlow = viewModel.getProductsByListId(listId)
+    // 초대코드 관련 상태
+    var showInviteCodeDialog by remember { mutableStateOf(false) }
+    var showInviteCodeDisplayDialog by remember { mutableStateOf(false) }
+    var inviteCode by remember { mutableStateOf<String?>(null) }
+    
+    // 리스트가 Firestore에 있는지 확인
+    var isFirestoreList by remember { mutableStateOf<Boolean?>(null) }
+    
+    // 상품 목록 - 리스트가 Firestore에 있으면 Firestore에서, 없으면 Room DB에서 가져오기
+    val productsFlow = when (isFirestoreList) {
+        true -> viewModel.getFirestoreProductsByListId(listId)
+        false -> viewModel.getProductsByListId(listId)
+        null -> kotlinx.coroutines.flow.flowOf(emptyList()) // 아직 확인 중
+    }
     val products by productsFlow.collectAsState(initial = emptyList())
     
     // 이미지 확대 오버레이
@@ -82,13 +96,21 @@ fun ListDetailScreen(
     // 리스트 정보 로드
     LaunchedEffect(listId) {
         isLoading = true
-        listEntity = viewModel.getListDetail(listId)
         
-        // Firestore에서 장소 상세 정보 가져오기
+        // Firestore에 리스트가 있는지 확인
+        isFirestoreList = viewModel.hasInviteCode(listId)
+        
+        // 리스트 정보 가져오기
+        listEntity = viewModel.getListDetail(listId)
+    }
+    
+    // 리스트 정보가 업데이트되면 firestore의 places 컬렉션 이용해서 placesDetails도 업데이트
+    LaunchedEffect(listEntity) {
         if (listEntity != null) {
             val db = FirebaseFirestore.getInstance()
             placesDetails = listEntity!!.places.map { place ->
                 try {
+                    // Firestore에서 상점 상세 정보 가져오기 시도
                     val placeDoc = db.collection("places").document(place.placeId).get().await()
                     if (placeDoc.exists()) {
                         val data = placeDoc.data
@@ -105,7 +127,7 @@ fun ListDetailScreen(
                             photoUrl = data?.get("photoUrl") as? String
                         )
                     } else {
-                        // Firestore에 정보가 없어도 기본 정보로 PlaceDetails 생성
+                        // Firestore에 없으면 Room DB의 기본 정보만 사용
                         PlaceDetails(
                             placeId = place.placeId,
                             name = place.name,
@@ -120,7 +142,8 @@ fun ListDetailScreen(
                         )
                     }
                 } catch (e: Exception) {
-                    // 에러 발생 시에도 기본 정보로 PlaceDetails 생성
+                    // 네트워크 오류나 Firestore 조회 실패 시 Room DB의 기본 정보만 사용
+                    android.util.Log.w("ListDetailScreen", "Failed to get place details from Firestore, using Room DB data: ${e.message}")
                     PlaceDetails(
                         placeId = place.placeId,
                         name = place.name,
@@ -135,8 +158,10 @@ fun ListDetailScreen(
                     )
                 }
             }
+            
+            // placesDetails까지 모두 가져왔으니 로딩 상태 해제
+            isLoading = false
         }
-        isLoading = false
     }
     
     Box(modifier = Modifier.fillMaxSize()) {
@@ -258,7 +283,23 @@ fun ListDetailScreen(
                             Box(
                                 modifier = Modifier
                                     .background(color = PrimaryAccent, shape = RoundedCornerShape(10.dp))
-                                    .clickable(onClick = onGroupAddClick)
+                                    .clickable {
+                                        scope.launch {
+                                            // 초대코드가 이미 발급되었는지 확인
+                                            val hasCode = viewModel.hasInviteCode(listId)
+                                            if (hasCode) {
+                                                // 이미 발급된 경우 초대코드 표시
+                                                val code = viewModel.getInviteCode(listId)
+                                                if (code != null) {
+                                                    inviteCode = code
+                                                    showInviteCodeDisplayDialog = true
+                                                }
+                                            } else {
+                                                // 아직 발급되지 않은 경우 발급 다이얼로그 표시
+                                                showInviteCodeDialog = true
+                                            }
+                                        }
+                                    }
                                     .padding(8.dp)
                             ) {
                                 Icon(
@@ -474,6 +515,36 @@ fun ListDetailScreen(
                     }
                 }
             }
+        }
+        
+        // 초대코드 발급 다이얼로그
+        if (showInviteCodeDialog) {
+            InviteCodeDialog(
+                onDismiss = { showInviteCodeDialog = false },
+                onGenerateInviteCode = { right ->
+                    scope.launch {
+                        val result = viewModel.generateInviteCode(listId, right)
+                        result.onSuccess { code ->
+                            inviteCode = code
+                            showInviteCodeDialog = false
+                            showInviteCodeDisplayDialog = true
+                        }.onFailure { e ->
+                            // 에러 처리
+                        }
+                    }
+                }
+            )
+        }
+        
+        // 초대코드 표시 다이얼로그
+        if (showInviteCodeDisplayDialog && inviteCode != null) {
+            InviteCodeDisplayDialog(
+                inviteCode = inviteCode!!, // !! - Not Null 보장
+                onDismiss = {
+                    showInviteCodeDisplayDialog = false
+                    inviteCode = null // 메모리 정리 목적
+                }
+            )
         }
     }
 }

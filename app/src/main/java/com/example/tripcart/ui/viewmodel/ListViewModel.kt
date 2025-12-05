@@ -79,12 +79,12 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     mergedLists[list.listId] = Pair(list, false)
                 }
                 
-                // Firestore 리스트 추가 (Room DB에 없는 경우만, Room DB에 저장하지 않음)
+                // Firestore 리스트 추가
                 // Firestore에는 채팅, 권한 등 추가 필드가 있어서 Room DB에 저장하지 않음
                 firestoreLists.forEach { list ->
                     if (!mergedLists.containsKey(list.listId)) {
                         mergedLists[list.listId] = Pair(list, true) // isFromFirestore = true
-                        // Room DB에는 저장하지 않음 (Firestore 구조가 다르므로)
+                        // Firestore 구조가 달라서 Room DB에는 저장하지 않음
                     }
                 }
                 
@@ -95,25 +95,83 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                         .thenBy { it.first.name } // 이름 순으로 정렬
                 )
             }.collect { mergedLists ->
-                // 각 리스트에 대한 정보를 변환 (추후 Firestore 연동 확장 시 필요)
+                // 각 리스트에 대한 정보를 변환
                 val listItems = mergedLists.map { (list, isFromFirestore) ->
                     async {
-                        // 추후 Firestore 추가 조회 시 여기서 처리
-                        val productCount = list.productCount
+                        var productCount = list.productCount
+                        var places = list.places
+                        
+                        // Firestore 리스트인 경우 productCount 필드를 사용
+                        if (isFromFirestore) {
+                            try {
+                                val listDoc = db.collection("lists").document(list.listId).get().await()
+                                if (listDoc.exists()) {
+                                    // productCount 필드 사용
+                                    val docProductCount = (listDoc.getLong("productCount") ?: listDoc.get("productCount") as? Number)?.toInt() ?: 0
+                                    
+                                    // productCount가 없거나 0인 경우 진행
+                                    // productCount가 없는 기존 firestore 리스트들 일괄 업데이트 목적!
+                                    if (docProductCount == 0) {
+                                        try {
+                                            val productsSnapshot = db.collection("lists")
+                                                .document(list.listId)
+                                                .collection("list_products")
+                                                .get()
+                                                .await()
+                                            val actualCount = productsSnapshot.size()
+                                            
+                                            // 실제 상품이 있으면 productCount 필드 업데이트
+                                            if (actualCount > 0) {
+                                                db.collection("lists")
+                                                    .document(list.listId)
+                                                    .update("productCount", actualCount)
+                                                    .await()
+                                                productCount = actualCount
+                                            } else {
+                                                productCount = 0
+                                            }
+                                        } catch (e: Exception) {
+                                            // 하위 컬렉션 조회 실패 시 문서의 productCount 사용
+                                            productCount = docProductCount
+                                        }
+                                    } else {
+                                        // productCount 필드가 있으면 그대로 사용
+                                        productCount = docProductCount
+                                    }
+                                    
+                                    // places 배열도 Firestore 문서에서 다시 가져오기
+                                    val placesList = (listDoc.get("places") as? List<*>) ?: emptyList<Any?>()
+                                    places = placesList.mapNotNull { placeMap ->
+                                        when (placeMap) {
+                                            is Map<*, *> -> {
+                                                val placeName = placeMap["name"] as? String
+                                                val placeId = placeMap["placeId"] as? String
+                                                if (placeName != null && placeId != null) {
+                                                    Place(name = placeName, placeId = placeId)
+                                                } else null
+                                            }
+                                            else -> null
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                // 오류 발생
+                            }
+                        }
                         
                         ListItemUiState(
                             listId = list.listId,
                             name = list.name,
                             status = list.status,
                             country = list.country,
-                            places = list.places,  // Place 객체 리스트 (name, placeId 연결)
+                            places = places,  // Place 객체 리스트 (name, placeId 연결)
                             productCount = productCount,
                             isFromFirestore = isFromFirestore
                         )
                     }
                 }
                 
-                // 모든 작업 완료 대기 (추후 비동기 확장 대비)
+                // 모든 작업 완료 대기
                 val completedListItems = listItems.awaitAll()
                 
                 _uiState.value = _uiState.value.copy(
@@ -352,45 +410,11 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                         if (!placeExists) {
                             // 로컬 DB에 Place 객체 추가
                             val updatedPlaces = list.places + Place(name = placeDetails.name, placeId = placeDetails.placeId)
-                            listDao.updateList(list.copy(places = updatedPlaces))
-                            
-                            // Firestore에도 추가 (Room DB 리스트도 Firestore에 저장되어 있을 수 있음)
-                            try {
-                                val listDoc = db.collection("lists").document(list.listId).get().await()
-                                if (listDoc.exists()) {
-                                    val currentPlaces = (listDoc.get("places") as? List<*>) ?: emptyList<Any?>()
-                                    val currentPlaceIds = currentPlaces.mapNotNull {
-                                        when (it) {
-                                            is Map<*, *> -> it["placeId"] as? String
-                                            is String -> it  // 기존 형식 호환
-                                            else -> null
-                                        }
-                                    }
-                                    
-                                    if (placeDetails.placeId !in currentPlaceIds) {
-                                        val newPlace = hashMapOf("name" to placeDetails.name, "placeId" to placeDetails.placeId)
-                                        val updatedPlacesList = currentPlaces + newPlace
-                                        
-                                        val updateData = hashMapOf<String, Any>(
-                                            "places" to updatedPlacesList
-                                        )
-                                        if (list.country == null && placeDetails.country != null) {
-                                            updateData["country"] = placeDetails.country
-                                            // 로컬 DB도 업데이트
-                                            listDao.updateList(list.copy(country = placeDetails.country, places = updatedPlaces))
-                                        } else {
-                                            listDao.updateList(list.copy(places = updatedPlaces))
-                                        }
-                                        
-                                        db.collection("lists")
-                                            .document(list.listId)
-                                            .update(updateData)
-                                            .await()
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                // Firestore 업데이트 실패해도 Room DB에는 저장됨
-                                android.util.Log.w("ListViewModel", "Failed to update Firestore for Room DB list", e)
+                            // 국가 업데이트 (첫 장소인 경우)
+                            if (list.country == null && placeDetails.country != null) {
+                                listDao.updateList(list.copy(country = placeDetails.country, places = updatedPlaces))
+                            } else {
+                                listDao.updateList(list.copy(places = updatedPlaces))
                             }
                         }
                     }
@@ -406,9 +430,6 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     // 새 리스트 생성
     suspend fun createNewList(placeDetails: PlaceDetails, listName: String = "새 리스트"): Result<String> {
         return try {
-            val userId = auth.currentUser?.uid
-                ?: return Result.failure(Exception("로그인이 필요합니다."))
-            
             val listId = UUID.randomUUID().toString()
             
             // 로컬 DB에 리스트 생성
@@ -422,32 +443,6 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 firestoreSynced = false
             )
             listDao.insertList(listEntity)
-            
-            // Firestore에 리스트 생성 (실패해도 Room DB에는 저장되었으므로 계속 진행)
-            try {
-                val listData = hashMapOf(
-                    "name" to listName,
-                    "status" to "준비중",
-                    "country" to (placeDetails.country ?: ""),
-                    "places" to listOf(hashMapOf("name" to placeDetails.name, "placeId" to placeDetails.placeId)),
-                    "productCount" to 0,  // 새 리스트는 상품 개수 0
-                    "ownerId" to userId,
-                    "sharedWith" to emptyList<String>(),
-                    "right" to "read"
-                )
-                
-                db.collection("lists")
-                    .document(listId)
-                    .set(listData)
-                    .await()
-                
-                
-                // 로컬 DB 동기화 상태 업데이트
-                listDao.updateList(listEntity.copy(firestoreSynced = true))
-            } catch (e: Exception) {
-                // Firestore 저장 실패해도 Room DB에는 저장되었으므로 계속 진행
-                // 로컬 DB 동기화 상태는 false로 유지
-            }
             
             // 리스트 목록 새로고침
             loadLists()
@@ -582,35 +577,46 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
             
             // 각 선택된 리스트에 상품 추가
             selectedLists.forEach { listItem ->
-                // 상품이 이미 리스트에 있는지 확인 (중복 체크)
-                val alreadyExists = listProductDao.productExistsInList(productDetails.id, listItem.listId)
-                
-                if (!alreadyExists) {
-                    // Room DB에 상품 추가 (IGNORE 전략으로 중복 시 자동 무시)
-                    val productEntity = ListProductEntity(
-                        id = productDetails.id,
-                        listId = listItem.listId,
-                        productId = productDetails.productId,  // null이면 사용자 생성 상품, 있으면 Firestore 공개 상품
-                        productName = productDetails.productName,
-                        category = productDetails.category,
-                        imageUrls = productDetails.imageUrls,
-                        quantity = productDetails.quantity,
-                        note = productDetails.note,
-                        bought = "구매전"
-                    )
-                    
-                    listProductDao.insertProduct(productEntity)
-                    
-                    // 리스트의 productCount 증가
-                    val list = listDao.getListById(listItem.listId)
-                    if (list != null) {
-                        val updatedList = list.copy(productCount = list.productCount + 1)
-                        listDao.updateList(updatedList)
-                    }
-                    
-                    // Firestore에도 추가 (Room DB 리스트가 Firestore에 있는 경우)
-                    if (!listItem.isFromFirestore) {
-                        try {
+                if (listItem.isFromFirestore) {
+                    // Firestore 리스트인 경우: list_products 하위 컬렉션에 추가
+                    try {
+                        // 중복 체크: list_products 컬렉션에서 이미 존재하는지 확인
+                        val existingProduct = db.collection("lists")
+                            .document(listItem.listId)
+                            .collection("list_products")
+                            .document(productDetails.id)
+                            .get()
+                            .await()
+                        
+                        if (!existingProduct.exists()) {
+                            // 상품 데이터 생성
+                            val productData = hashMapOf<String, Any>(
+                                "id" to productDetails.id,
+                                "productName" to productDetails.productName,
+                                "category" to productDetails.category,
+                                "quantity" to productDetails.quantity,
+                                "bought" to "구매전"
+                            )
+                            
+                            if (productDetails.productId != null) {
+                                productData["productId"] = productDetails.productId
+                            }
+                            if (productDetails.imageUrls != null && productDetails.imageUrls.isNotEmpty()) {
+                                productData["imageUrls"] = productDetails.imageUrls
+                            }
+                            if (productDetails.note != null && productDetails.note.isNotBlank()) {
+                                productData["note"] = productDetails.note
+                            }
+                            
+                            // list_products 하위 컬렉션에 상품 추가
+                            db.collection("lists")
+                                .document(listItem.listId)
+                                .collection("list_products")
+                                .document(productDetails.id)
+                                .set(productData)
+                                .await()
+                            
+                            // 리스트의 productCount 증가
                             val listDoc = db.collection("lists").document(listItem.listId).get().await()
                             if (listDoc.exists()) {
                                 val currentProductCount = (listDoc.getLong("productCount") ?: 0).toInt()
@@ -619,8 +625,36 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                                     .update("productCount", currentProductCount + 1)
                                     .await()
                             }
-                        } catch (e: Exception) {
-                            // Firestore 업데이트 실패해도 Room DB에는 저장됨
+                        }
+                    } catch (e: Exception) {
+                        throw Exception("${listItem.name} 리스트에 상품 추가 실패: ${e.message}")
+                    }
+                } else {
+                    // Room DB 리스트인 경우: list_products 테이블에 추가
+                    // 상품이 이미 리스트에 있는지 확인 (중복 체크)
+                    val alreadyExists = listProductDao.productExistsInList(productDetails.id, listItem.listId)
+                    
+                    if (!alreadyExists) {
+                        // Room DB에 상품 추가 (IGNORE 전략으로 중복 시 자동 무시)
+                        val productEntity = ListProductEntity(
+                            id = productDetails.id,
+                            listId = listItem.listId,
+                            productId = productDetails.productId,  // null이면 사용자 생성 상품, 있으면 Firestore 공개 상품
+                            productName = productDetails.productName,
+                            category = productDetails.category,
+                            imageUrls = productDetails.imageUrls,
+                            quantity = productDetails.quantity,
+                            note = productDetails.note,
+                            bought = "구매전"
+                        )
+                        
+                        listProductDao.insertProduct(productEntity)
+                        
+                        // 리스트의 productCount 증가
+                        val list = listDao.getListById(listItem.listId)
+                        if (list != null) {
+                            val updatedList = list.copy(productCount = list.productCount + 1)
+                            listDao.updateList(updatedList)
                         }
                     }
                 }
@@ -652,21 +686,6 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
             if (list != null) {
                 val updatedList = list.copy(productCount = (list.productCount - 1).coerceAtLeast(0))
                 listDao.updateList(updatedList)
-                
-                // Firestore에도 업데이트 (Room DB 리스트가 Firestore에 있는 경우)
-                try {
-                    val listDoc = db.collection("lists").document(listId).get().await()
-                    if (listDoc.exists()) {
-                        val currentProductCount = (listDoc.getLong("productCount") ?: 0).toInt()
-                        val newProductCount = (currentProductCount - 1).coerceAtLeast(0)
-                        db.collection("lists")
-                            .document(listId)
-                            .update("productCount", newProductCount)
-                            .await()
-                    }
-                } catch (e: Exception) {
-                    // Firestore 업데이트 실패해도 Room DB에는 반영됨
-                }
             }
             
             // 리스트 목록 새로고침
@@ -684,9 +703,6 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         listName: String = "새 리스트"
     ): Result<String> {
         return try {
-            val userId = auth.currentUser?.uid
-                ?: return Result.failure(Exception("로그인이 필요합니다."))
-            
             val listId = UUID.randomUUID().toString()
             
             // 로컬 DB에 리스트 생성
@@ -715,32 +731,6 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
             )
             listProductDao.insertProduct(productEntity)
             
-            // Firestore에 리스트 생성 (비동기로 처리함으로써 블로킹 방지)
-            viewModelScope.launch {
-                try {
-                    val listData = hashMapOf(
-                        "name" to listName,
-                        "status" to "준비중",
-                        "country" to "",
-                        "places" to emptyList<Any>(),
-                        "productCount" to 1,
-                        "ownerId" to userId,
-                        "sharedWith" to emptyList<String>(),
-                        "right" to "read"
-                    )
-                    
-                    db.collection("lists")
-                        .document(listId)
-                        .set(listData)
-                        .await()
-                    
-                    // 로컬 DB 동기화 상태 업데이트
-                    listDao.updateList(listEntity.copy(firestoreSynced = true))
-                } catch (e: Exception) {
-                    // Firestore 저장 실패해도 Room DB에는 저장되었으므로 계속 진행
-                }
-            }
-            
             // 리스트 목록 새로고침 (비동기로 처리)
             viewModelScope.launch {
                 loadLists()
@@ -759,28 +749,95 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     // 리스트 상세 정보 가져오기 (리스트 정보 + 상품 목록)
     suspend fun getListDetail(listId: String): ListEntity? {
         return try {
-            listDao.getListById(listId)
+            // 먼저 Room DB에서 확인
+            val roomList = listDao.getListById(listId)
+            if (roomList != null) {
+                return roomList
+            }
+            
+            // Room DB에 없으면 Firestore에서 가져오기
+            val firestoreDoc = db.collection("lists").document(listId).get().await()
+            if (firestoreDoc.exists()) {
+                parseListDocument(firestoreDoc)
+            } else {
+                null
+            }
         } catch (e: Exception) {
-            android.util.Log.e("ListViewModel", "Error getting list detail", e)
             null
         }
     }
     
-    // 특정 리스트의 상품 목록 가져오기 (Flow)
+    // 특정 리스트의 상품 목록 가져오기 (Flow) - Room DB
     fun getProductsByListId(listId: String): Flow<List<ListProductEntity>> {
         return listProductDao.getProductsByListId(listId)
+    }
+    
+    // 특정 리스트의 상품 목록 가져오기 (Flow) - Firestore
+    fun getFirestoreProductsByListId(listId: String): Flow<List<ListProductEntity>> {
+        return callbackFlow {
+            val firestoreListener = db.collection("lists")
+                .document(listId)
+                .collection("list_products")
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        android.util.Log.e("ListViewModel", "Error listening to Firestore products", error)
+                        trySend(emptyList())
+                        return@addSnapshotListener
+                    }
+                    
+                    val products = snapshot?.documents?.mapNotNull { doc ->
+                        val data = doc.data
+                        ListProductEntity(
+                            id = data?.get("id") as? String ?: doc.id,
+                            listId = listId,
+                            productId = data?.get("productId") as? String,
+                            productName = data?.get("productName") as? String ?: "",
+                            category = data?.get("category") as? String ?: "",
+                            imageUrls = (data?.get("imageUrls") as? List<*>)?.mapNotNull { it as? String },
+                            quantity = (data?.get("quantity") as? Number)?.toInt() ?: 0,
+                            note = data?.get("note") as? String,
+                            bought = data?.get("bought") as? String ?: "구매전"
+                        )
+                    } ?: emptyList()
+                    
+                    trySend(products)
+                }
+            
+            awaitClose {
+                firestoreListener.remove()
+            }
+        }
     }
     
     // 상품 상태(bought) 업데이트
     suspend fun updateProductBoughtStatus(productId: String, listId: String, bought: String): Result<Unit> {
         return try {
-            val product = listProductDao.getProductById(productId, listId)
-            if (product != null) {
-                val updatedProduct = product.copy(bought = bought)
+            // 먼저 Room DB에서 확인
+            val roomProduct = listProductDao.getProductById(productId, listId)
+            if (roomProduct != null) {
+                val updatedProduct = roomProduct.copy(bought = bought)
                 listProductDao.updateProduct(updatedProduct)
                 Result.success(Unit)
             } else {
-                Result.failure(Exception("상품을 찾을 수 없습니다."))
+                // Room DB에 없으면 Firestore에서 업데이트
+                val firestoreDoc = db.collection("lists")
+                    .document(listId)
+                    .collection("list_products")
+                    .document(productId)
+                    .get()
+                    .await()
+                
+                if (firestoreDoc.exists()) {
+                    db.collection("lists")
+                        .document(listId)
+                        .collection("list_products")
+                        .document(productId)
+                        .update("bought", bought)
+                        .await()
+                    Result.success(Unit)
+                } else {
+                    Result.failure(Exception("상품을 찾을 수 없습니다."))
+                }
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -790,12 +847,19 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     // 리스트 상태(status) 업데이트
     suspend fun updateListStatus(listId: String, status: String): Result<Unit> {
         return try {
+            // 먼저 Room DB에서 확인
             val list = listDao.getListById(listId)
             if (list != null) {
+                // Room DB 리스트인 경우
                 val updatedList = list.copy(status = status)
                 listDao.updateList(updatedList)
                 
-                // Firestore에도 업데이트
+                // 리스트 목록 새로고침
+                loadLists()
+                
+                Result.success(Unit)
+            } else {
+                // Room DB에 없으면 Firestore 리스트!
                 try {
                     val listDoc = db.collection("lists").document(listId).get().await()
                     if (listDoc.exists()) {
@@ -803,21 +867,228 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                             .document(listId)
                             .update("status", status)
                             .await()
+                        
+                        // 리스트 목록 새로고침
+                        loadLists()
+                        
+                        Result.success(Unit)
+                    } else {
+                        Result.failure(Exception("리스트를 찾을 수 없습니다."))
                     }
                 } catch (e: Exception) {
-                    // Firestore 업데이트 실패해도 Room DB에는 반영됨
+                    Result.failure(Exception("리스트 상태 업데이트 실패: ${e.message}"))
                 }
-                
-                // 리스트 목록 새로고침
-                loadLists()
-                
-                Result.success(Unit)
-            } else {
-                Result.failure(Exception("리스트를 찾을 수 없습니다."))
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+    
+    // 초대코드 발급 (리스트를 Firestore로 이동)
+    suspend fun generateInviteCode(listId: String, right: String): Result<String> {
+        return try {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                return Result.failure(Exception("로그인이 필요합니다."))
+            }
+            
+            // Room DB에서 리스트 가져오기
+            val list = listDao.getListById(listId)
+            if (list == null) {
+                return Result.failure(Exception("리스트를 찾을 수 없습니다."))
+            }
+            
+            // 이미 Firestore에 있는지 확인
+            try {
+                val existingDoc = db.collection("lists").document(listId).get().await()
+                if (existingDoc.exists() && existingDoc.getString("inviteCode") != null) {
+                    // 이미 초대코드가 발급된 경우 기존 초대코드 반환
+                    return Result.success(existingDoc.getString("inviteCode")!!)
+                }
+            } catch (e: Exception) {
+                // 오류 발생
+            }
+            
+            // 초대코드 생성 (6자리 영숫자)
+            val inviteCode = generateRandomInviteCode()
+            
+            // Room DB에서 상품 목록 가져오기
+            val products = listProductDao.getProductsByListId(listId).first()
+            
+            // Firestore에 리스트 저장
+            val placesList = list.places.map { place ->
+                hashMapOf("name" to place.name, "placeId" to place.placeId)
+            }
+            
+            val listData = hashMapOf<String, Any>(
+                "name" to list.name,
+                "status" to list.status,
+                "places" to placesList,
+                "ownerId" to userId,
+                "sharedWith" to emptyList<String>(),
+                "inviteCode" to inviteCode,
+                "right" to right
+            )
+            
+            if (list.country != null) {
+                listData["country"] = list.country
+            }
+            
+            // Firestore에 리스트 문서 생성
+            try {
+                db.collection("lists").document(listId).set(listData).await()
+            } catch (e: com.google.firebase.firestore.FirebaseFirestoreException) {
+                if (e.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                    return Result.failure(Exception("Firestore 권한이 없습니다. Firebase Console에서 보안 규칙을 설정해주세요."))
+                }
+                throw e
+            }
+            
+            // 상품들을 Firestore 하위 컬렉션으로 이동
+            products.forEach { product ->
+                val productData = hashMapOf<String, Any>(
+                    "id" to product.id,
+                    "productName" to product.productName,
+                    "category" to product.category,
+                    "quantity" to product.quantity,
+                    "bought" to product.bought
+                )
+                
+                if (product.productId != null) {
+                    productData["productId"] = product.productId
+                }
+                if (product.imageUrls != null && product.imageUrls.isNotEmpty()) {
+                    productData["imageUrls"] = product.imageUrls
+                }
+                if (product.note != null) {
+                    productData["note"] = product.note
+                }
+                
+                db.collection("lists")
+                    .document(listId)
+                    .collection("list_products") // products와 구분하기 위해 list_products 사용
+                    .document(product.id)
+                    .set(productData)
+                    .await()
+            }
+            
+            // Room DB에서 리스트 삭제
+            listDao.deleteListById(listId)
+            
+            // 리스트 목록 새로고침
+            loadLists()
+            
+            Result.success(inviteCode)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    // 초대코드로 리스트 참여
+    suspend fun joinListByInviteCode(inviteCode: String): Result<String> {
+        return try {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                return Result.failure(Exception("로그인이 필요합니다."))
+            }
+            
+            // 초대코드로 리스트 찾기
+            val querySnapshot = db.collection("lists")
+                .whereEqualTo("inviteCode", inviteCode)
+                .get()
+                .await()
+            
+            if (querySnapshot.isEmpty) {
+                return Result.failure(Exception("유효하지 않은 초대코드입니다."))
+            }
+            
+            val listDoc = querySnapshot.documents.first()
+            val listId = listDoc.id
+            val ownerId = listDoc.getString("ownerId")
+            
+            // owner가 본인 리스트에 참여하려고 하는 경우
+            if (ownerId == userId) {
+                return Result.failure(Exception("자신이 만든 리스트에는 참여할 수 없습니다."))
+            }
+            
+            // 이미 참여 중인지 확인
+            val sharedWith = listDoc.get("sharedWith") as? List<*> ?: emptyList<Any?>()
+            val isAlreadyJoined = sharedWith.contains(userId)
+            
+            if (!isAlreadyJoined) {
+                // sharedWith에 사용자 추가
+                val updatedSharedWith = sharedWith.toMutableList().apply {
+                    add(userId)
+                }
+                
+                db.collection("lists")
+                    .document(listId)
+                    .update("sharedWith", updatedSharedWith)
+                    .await()
+                
+                // 리스트 목록 새로고침
+                loadLists()
+            }
+            
+            // 이미 참여 중이면 실패로 처리
+            if (isAlreadyJoined) {
+                return Result.failure(Exception("이미 참여 중인 리스트입니다."))
+            }
+            
+            Result.success(listId)
+        } catch (e: com.google.firebase.firestore.FirebaseFirestoreException) {
+            if (e.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                return Result.failure(Exception("초대코드로 리스트에 참여할 권한이 없습니다. Firebase 보안 규칙을 확인해주세요."))
+            }
+            Result.failure(e)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    // 초대코드 가져오기 (이미 발급된 경우)
+    suspend fun getInviteCode(listId: String): String? {
+        return try {
+            val listDoc = db.collection("lists").document(listId).get().await()
+            if (listDoc.exists()) {
+                listDoc.getString("inviteCode")
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ListViewModel", "Error getting invite code", e)
+            null
+        }
+    }
+    
+    // 초대코드가 발급되었는지 확인
+    suspend fun hasInviteCode(listId: String): Boolean {
+        return try {
+            // 먼저 Room DB 확인 (Room DB에 있으면 초대코드 없음)
+            val roomList = listDao.getListById(listId)
+            if (roomList != null) {
+                return false // Room DB 리스트는 초대코드 없음
+            }
+            
+            // Room DB에 없으면 Firestore 확인
+            val listDoc = db.collection("lists").document(listId).get().await()
+            if (listDoc.exists()) {
+                listDoc.getString("inviteCode") != null
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            // Firestore 조회 실패 시 (권한 오류 등)
+            false
+        }
+    }
+    
+    // 랜덤 초대코드 생성 (6자리 영숫자)
+    private fun generateRandomInviteCode(): String {
+        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        return (1..6)
+            .map { chars.random() }
+            .joinToString("")
     }
 }
 

@@ -26,6 +26,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tripcart.ui.components.AddItemDialog
 import com.example.tripcart.ui.components.AppBottomBar
 import com.example.tripcart.ui.components.AppTopBar
+import com.example.tripcart.ui.components.JoinByInviteCodeDialog
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.theme.SecondaryBackground
 import com.example.tripcart.ui.theme.TertiaryBackground
@@ -44,6 +50,9 @@ fun ListScreen(
 ) {
     val uiState = viewModel.uiState.collectAsState().value
     var showAddDialog by remember { mutableStateOf(false) }
+    var showJoinDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     
     // 화면이 표시될 때마다 리스트 갱신
     LaunchedEffect(Unit) {
@@ -173,6 +182,33 @@ fun ListScreen(
                 onAddPlace = {
                     showAddDialog = false
                     onNavigateToPlaceSearch()
+                },
+                onJoinByInviteCode = {
+                    showAddDialog = false
+                    showJoinDialog = true
+                }
+            )
+        }
+        
+        // 초대코드로 참여하기 다이얼로그
+        if (showJoinDialog) {
+            JoinByInviteCodeDialog(
+                onDismiss = { showJoinDialog = false },
+                onJoin = { inviteCode ->
+                    scope.launch {
+                        val result = viewModel.joinListByInviteCode(inviteCode)
+                        result.onSuccess { listId ->
+                            showJoinDialog = false
+                            // 참여 성공 시 리스트 상세 화면으로 이동
+                            Toast.makeText(context, "리스트에 참여했습니다.", Toast.LENGTH_SHORT).show()
+                            onNavigateToListDetail(listId)
+                        }.onFailure { e ->
+                            // 에러 처리
+                            val errorMessage = e.message ?: "리스트 참여에 실패했습니다."
+                            Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                            showJoinDialog = false
+                        }
+                    }
                 }
             )
         }

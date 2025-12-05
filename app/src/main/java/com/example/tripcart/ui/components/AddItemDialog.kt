@@ -22,7 +22,8 @@ import com.example.tripcart.ui.theme.PrimaryBackground
 fun AddItemDialog(
     onDismiss: () -> Unit,
     onAddProduct: () -> Unit,
-    onAddPlace: () -> Unit
+    onAddPlace: () -> Unit,
+    onJoinByInviteCode: () -> Unit = {}
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -129,6 +130,30 @@ fun AddItemDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
+                
+                // 초대코드로 참여하기 버튼
+                Button(
+                    onClick = {
+                        onJoinByInviteCode()
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryAccent
+                    )
+                ) {
+                    Text(
+                        text = "초대코드로 참여하기",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
                 
                 // 취소 버튼
                 TextButton(
