@@ -23,9 +23,10 @@ import com.example.tripcart.ui.theme.PrimaryBackground
 @Composable
 fun InviteCodeDialog(
     onDismiss: () -> Unit,
-    onGenerateInviteCode: (String) -> Unit // right: "read" or "edit"
+    onGenerateInviteCode: (String, String) -> Unit // right: "read" or "edit", nickname: String
 ) {
     var selectedRight by remember { mutableStateOf<String?>(null) }
+    var nickname by remember { mutableStateOf("") }
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -60,6 +61,34 @@ fun InviteCodeDialog(
                     fontSize = 14.sp,
                     color = Color.Gray,
                     modifier = Modifier.padding(bottom = 24.dp)
+                )
+                
+                Text(
+                    text = "이 리스트에서 사용할 닉네임",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
+                
+                OutlinedTextField(
+                    value = nickname,
+                    onValueChange = { nickname = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    placeholder = {
+                        Text(
+                            text = "닉네임을 입력하세요",
+                            color = Color.Gray
+                        )
+                    },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryAccent,
+                        unfocusedBorderColor = Color.Gray
+                    )
                 )
                 
                 Text(
@@ -98,12 +127,14 @@ fun InviteCodeDialog(
                 // 초대코드 발급받기 버튼
                 Button(
                     onClick = {
-                        selectedRight?.let {
-                            onGenerateInviteCode(it)
+                        selectedRight?.let { right ->
+                            if (nickname.isNotBlank()) {
+                                onGenerateInviteCode(right, nickname.trim())
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = selectedRight != null,
+                    enabled = selectedRight != null && nickname.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PrimaryAccent
                     )

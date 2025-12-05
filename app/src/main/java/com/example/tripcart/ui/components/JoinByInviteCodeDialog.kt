@@ -17,9 +17,10 @@ import com.example.tripcart.ui.theme.PrimaryAccent
 @Composable
 fun JoinByInviteCodeDialog(
     onDismiss: () -> Unit,
-    onJoin: (String) -> Unit
+    onJoin: (String, String) -> Unit // inviteCode, nickname
 ) {
     var inviteCodeText by remember { mutableStateOf(TextFieldValue("")) }
+    var nickname by remember { mutableStateOf("") }
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -62,15 +63,43 @@ fun JoinByInviteCodeDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
+                Text(
+                    text = "이 리스트에서 사용할 닉네임",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
+                
+                OutlinedTextField(
+                    value = nickname,
+                    onValueChange = { nickname = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = {
+                        Text(
+                            text = "닉네임을 입력하세요",
+                            color = Color.Gray
+                        )
+                    },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryAccent,
+                        unfocusedBorderColor = Color.Gray
+                    )
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
                 // 참여하기 버튼
                 Button(
                     onClick = {
-                        if (inviteCodeText.text.isNotBlank()) {
-                            onJoin(inviteCodeText.text.trim().uppercase())
+                        if (inviteCodeText.text.isNotBlank() && nickname.isNotBlank()) {
+                            onJoin(inviteCodeText.text.trim().uppercase(), nickname.trim())
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = inviteCodeText.text.isNotBlank(),
+                    enabled = inviteCodeText.text.isNotBlank() && nickname.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PrimaryAccent
                     )

@@ -19,9 +19,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
@@ -29,7 +33,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -46,6 +52,7 @@ import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.theme.PrimaryAccent
 import com.example.tripcart.ui.theme.SecondaryBackground
 import com.example.tripcart.ui.theme.TertiaryBackground
+import com.example.tripcart.ui.theme.BoxBackground
 import com.example.tripcart.ui.viewmodel.ListViewModel
 import com.example.tripcart.ui.viewmodel.PlaceDetails
 import com.example.tripcart.R
@@ -82,6 +89,9 @@ fun ListDetailScreen(
     // 리스트가 Firestore에 있는지 확인
     var isFirestoreList by remember { mutableStateOf<Boolean?>(null) }
     
+    // 참여자 정보
+    var participantInfo by remember { mutableStateOf<com.example.tripcart.ui.viewmodel.ListParticipantInfo?>(null) }
+    
     // 상품 목록 - 리스트가 Firestore에 있으면 Firestore에서, 없으면 Room DB에서 가져오기
     val productsFlow = when (isFirestoreList) {
         true -> viewModel.getFirestoreProductsByListId(listId)
@@ -102,6 +112,13 @@ fun ListDetailScreen(
         
         // 리스트 정보 가져오기
         listEntity = viewModel.getListDetail(listId)
+        
+        // 참여자 정보 가져오기 (공유 리스트일 때만)
+        if (isFirestoreList == true) {
+            viewModel.getListParticipants(listId).onSuccess {
+                participantInfo = it
+            }
+        }
     }
     
     // 리스트 정보가 업데이트되면 firestore의 places 컬렉션 이용해서 placesDetails도 업데이트
@@ -242,75 +259,392 @@ fun ListDetailScreen(
                         .padding(paddingValues),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 상단: 상태 뱃지와 국가
+                    // 최상단: 공유 리스트 / 개인 리스트 구분
                     item {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 20.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(start = 20.dp, top = 24.dp, end = 16.dp, bottom = 16.dp)
                         ) {
-                            // 좌측: 상태 뱃지와 국가
+                            // 리스트 타입 표시와 국가 태그
+                            val isShared = participantInfo?.isShared == true
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(horizontal = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // 상태 뱃지 (클릭 가능)
-                                StatusBadge(
-                                    status = listEntity!!.status,
-                                    onClick = {
-                                        scope.launch {
-                                            val nextStatus = when (listEntity!!.status) {
-                                                "준비중" -> "진행중"
-                                                "진행중" -> "완료"
-                                                "완료" -> "준비중"
-                                                else -> "준비중"
-                                            }
-                                            viewModel.updateListStatus(listId, nextStatus)
-                                            listEntity = listEntity!!.copy(status = nextStatus)
-                                        }
-                                    }
+                                Text(
+                                    text = if (isShared) "공유 리스트" else "개인 리스트",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryAccent
                                 )
                                 
                                 // 국가 태그
-                                if (listEntity!!.country != null) {
+                                if (listEntity?.country != null) {
                                     CountryTag(country = listEntity!!.country!!)
                                 }
                             }
                             
-                            // 우측: 그룹 추가 버튼
-                            Box(
-                                modifier = Modifier
-                                    .background(color = PrimaryAccent, shape = RoundedCornerShape(10.dp))
-                                    .clickable {
-                                        scope.launch {
-                                            // 초대코드가 이미 발급되었는지 확인
-                                            val hasCode = viewModel.hasInviteCode(listId)
-                                            if (hasCode) {
-                                                // 이미 발급된 경우 초대코드 표시
-                                                val code = viewModel.getInviteCode(listId)
-                                                if (code != null) {
-                                                    inviteCode = code
-                                                    showInviteCodeDisplayDialog = true
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            // 개인 리스트 안내 또는 공유 리스트 정보
+                            if (!isShared) {
+                                // 개인 리스트 안내
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            color = Color(0xC1FFFFFF),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .border(
+                                            width = 1.dp,
+                                            color = Color.Gray.copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .padding(24.dp)
+                                ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        // 상단: 상태 태그
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.Start,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                StatusBadge(
+                                                    status = listEntity!!.status,
+                                                    onClick = {
+                                                        scope.launch {
+                                                            val nextStatus = when (listEntity!!.status) {
+                                                                "준비중" -> "진행중"
+                                                                "진행중" -> "완료"
+                                                                "완료" -> "준비중"
+                                                                else -> "준비중"
+                                                            }
+                                                            viewModel.updateListStatus(listId, nextStatus)
+                                                            listEntity = listEntity!!.copy(status = nextStatus)
+                                                        }
+                                                    }
+                                                )
+                                                Column(
+                                                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                                                ){
+                                                    Text(
+                                                        text = "진행 상태",
+                                                        fontSize = 16.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = Color(0xFF333333)
+                                                    )
+                                                    Text(
+                                                        text = "탭하여 변경 가능",
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFF666666)
+                                                    )
                                                 }
-                                            } else {
-                                                // 아직 발급되지 않은 경우 발급 다이얼로그 표시
-                                                showInviteCodeDialog = true
+                                            }
+                                        }
+                                        
+                                        // 중간: 설명
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(
+                                                text = "나만 사용할 수 있는 리스트입니다.",
+                                                fontSize = 14.sp,
+                                                color = Color(0xFF333333),
+                                                lineHeight = 20.sp
+                                            )
+
+                                            Text(
+                                                text = "네트워크 연결과 무관하게 사용 가능합니다.",
+                                                fontSize = 14.sp,
+                                                color = Color(0xFF666666),
+                                                lineHeight = 20.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                // 공유 리스트 정보
+                                participantInfo?.let { info ->
+                                    var isParticipantsExpanded by remember { mutableStateOf(false) }
+                                    
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                color = Color(0xC1FFFFFF),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .border(
+                                                width = 1.dp,
+                                                color = Color.Gray.copy(alpha = 0.3f),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .padding(24.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        // 상단: 상태 뱃지와 초대코드 버튼
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(horizontal = 2.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // 좌측: 진행 상태 텍스트와 상태 뱃지
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                StatusBadge(
+                                                    status = listEntity!!.status,
+                                                    onClick = {
+                                                        scope.launch {
+                                                            val nextStatus = when (listEntity!!.status) {
+                                                                "준비중" -> "진행중"
+                                                                "진행중" -> "완료"
+                                                                "완료" -> "준비중"
+                                                                else -> "준비중"
+                                                            }
+                                                            viewModel.updateListStatus(listId, nextStatus)
+                                                            listEntity = listEntity!!.copy(status = nextStatus)
+                                                        }
+                                                    }
+                                                )
+                                                Column(
+                                                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                                                ){
+                                                    Text(
+                                                        text = "진행 상태",
+                                                        fontSize = 16.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = Color(0xFF333333)
+                                                    )
+                                                    Text(
+                                                        text = "탭하여 변경 가능",
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFF666666)
+                                                    )
+                                                }
+                                            }
+                                            
+                                            // 우측: 그룹 추가 버튼
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(color = PrimaryAccent, shape = RoundedCornerShape(10.dp))
+                                                    .clickable {
+                                                        scope.launch {
+                                                            // 초대코드가 이미 발급되었는지 확인
+                                                            val hasCode = viewModel.hasInviteCode(listId)
+                                                            if (hasCode) {
+                                                                // 이미 발급된 경우 초대코드 표시
+                                                                val code = viewModel.getInviteCode(listId)
+                                                                if (code != null) {
+                                                                    inviteCode = code
+                                                                    showInviteCodeDisplayDialog = true
+                                                                }
+                                                            } else {
+                                                                // 아직 발급되지 않은 경우 발급 다이얼로그 표시
+                                                                showInviteCodeDialog = true
+                                                            }
+                                                        }
+                                                    }
+                                                    .padding(8.dp)
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.group_add),
+                                                    contentDescription = "그룹 추가",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                            }
+                                        }
+                                        
+                                        // 중간: 참여자 권한 표시
+                                        val currentUserRole = info.currentUserRole ?: "read"
+                                        val roleText = when (currentUserRole) {
+                                            "owner" -> "edit"
+                                            "edit" -> "edit"
+                                            "read" -> "read"
+                                            else -> "read"
+                                        }
+                                        
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(horizontal = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(
+                                                        color = Color(0xFF4F8A8B),
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    )
+                                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                                            ) {
+                                                Text(
+                                                    text = roleText,
+                                                    fontSize = 20.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                            Text(
+                                                text = "나의 권한",
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFF333333)
+                                            )
+                                        }
+                                        
+                                        // 권한 설명
+                                        val right = when (currentUserRole) {
+                                            "owner" -> "edit" // 소유자는 edit 권한과 동일
+                                            else -> currentUserRole
+                                        }
+                                        
+                                        if (right == "read" || right == "edit") {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(
+                                                        color = Color(0x4363AEAF),
+                                                        shape = RoundedCornerShape(12.dp)
+                                                    )
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = Color.Gray.copy(alpha = 0.3f),
+                                                        shape = RoundedCornerShape(12.dp)
+                                                    )
+                                                    .padding(12.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = if (right == "read") {
+                                                        "상품 구매 여부만 수정 가능"
+                                                    } else {
+                                                        "상품 추가, 상품 삭제 등 모든 수정 가능"
+                                                    },
+                                                    fontSize = 14.sp,
+                                                    color = Color(0xFF3A3A3A),
+                                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                        
+                                        // 하단: 참여자 목록 (토글)
+                                        if (info.participants.isNotEmpty()) {
+                                            val currentUserId = info.currentUserId
+                                            
+                                            // 방장 찾기
+                                            val owner = info.participants.find { it.role == "owner" }
+                                            
+                                            // 방장을 제외한 다른 참여자들
+                                            val otherParticipants = info.participants.filter { 
+                                                it.userId != owner?.userId
+                                            }
+                                            
+                                            val totalMembers = info.participants.size
+                                            
+                                            // 참여자 목록
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(bottom = 4.dp)
+                                            ) {
+                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    // 토글 버튼
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clickable { isParticipantsExpanded = !isParticipantsExpanded },
+                                                        horizontalArrangement = Arrangement.Start,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (isParticipantsExpanded) 
+                                                                Icons.Default.ExpandLess else 
+                                                                Icons.Default.ExpandMore,
+                                                            contentDescription = if (isParticipantsExpanded) "접기" else "펼치기",
+                                                            modifier = Modifier.size(20.dp),
+                                                            tint = Color(0xFF666666)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(
+                                                            text = "멤버 (${totalMembers}명)",
+                                                            fontSize = 16.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFF666666)
+                                                        )
+                                                    }
+                                                    
+                                                    // 펼쳐진 참여자 목록
+                                                    if (isParticipantsExpanded) {
+                                                        Column(
+                                                            modifier = Modifier.padding(start = 28.dp),
+                                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                                        ) {
+                                                            // 방장 표시
+                                                            owner?.let { ownerParticipant ->
+                                                                Row(
+                                                                    modifier = Modifier.fillMaxWidth(),
+                                                                    horizontalArrangement = Arrangement.Start,
+                                                                    verticalAlignment = Alignment.CenterVertically
+                                                                ) {
+                                                                    Image(
+                                                                        painter = painterResource(id = R.drawable.crown),
+                                                                        contentDescription = "방장",
+                                                                        modifier = Modifier.size(20.dp),
+                                                                        colorFilter = ColorFilter.tint(Color(0xFFFF8C00))
+                                                                    )
+                                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                                    Text(
+                                                                        text = ownerParticipant.name,
+                                                                        fontSize = 16.sp,
+                                                                        color = Color(0xFF333333),
+                                                                        fontWeight = if (ownerParticipant.userId == currentUserId) FontWeight.Bold else FontWeight.Normal
+                                                                    )
+                                                                }
+                                                            }
+                                                            
+                                                            // 다른 참여자들 표시
+                                                            otherParticipants.forEach { participant ->
+                                                                Row(
+                                                                    modifier = Modifier.fillMaxWidth(),
+                                                                    horizontalArrangement = Arrangement.Start,
+                                                                    verticalAlignment = Alignment.CenterVertically
+                                                                ) {
+                                                                    Icon(
+                                                                        imageVector = Icons.Default.Person,
+                                                                        contentDescription = "참여자",
+                                                                        modifier = Modifier.size(20.dp),
+                                                                        tint = Color(0xFF666666)
+                                                                    )
+                                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                                    Text(
+                                                                        text = participant.name,
+                                                                        fontSize = 16.sp,
+                                                                        color = Color(0xFF333333),
+                                                                        fontWeight = if (participant.userId == currentUserId) FontWeight.Bold else FontWeight.Normal
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
-                                    .padding(8.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.group_add),
-                                    contentDescription = "그룹 추가",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                }
                             }
                         }
                     }
+                    
                     
                     // 장소 섹션
                     if (placesDetails.isNotEmpty()) {
@@ -521,9 +855,9 @@ fun ListDetailScreen(
         if (showInviteCodeDialog) {
             InviteCodeDialog(
                 onDismiss = { showInviteCodeDialog = false },
-                onGenerateInviteCode = { right ->
+                onGenerateInviteCode = { right, nickname ->
                     scope.launch {
-                        val result = viewModel.generateInviteCode(listId, right)
+                        val result = viewModel.generateInviteCode(listId, right, nickname)
                         result.onSuccess { code ->
                             inviteCode = code
                             showInviteCodeDialog = false
@@ -564,12 +898,18 @@ fun StatusBadge(
     Box(
         modifier = Modifier
             .background(backgroundColor, shape = RoundedCornerShape(8.dp))
+            .border(
+                width = 2.dp,
+                color = Color.White,
+                shape = RoundedCornerShape(8.dp)
+            )
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = status,
-            fontSize = 14.sp,
+            fontSize = 16.sp,
             color = Color.White,
             fontWeight = FontWeight.Bold
         )

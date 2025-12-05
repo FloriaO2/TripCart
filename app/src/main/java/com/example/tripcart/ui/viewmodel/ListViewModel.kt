@@ -885,7 +885,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     // 초대코드 발급 (리스트를 Firestore로 이동)
-    suspend fun generateInviteCode(listId: String, right: String): Result<String> {
+    suspend fun generateInviteCode(listId: String, right: String, ownerNickname: String): Result<String> {
         return try {
             val userId = auth.currentUser?.uid
             if (userId == null) {
@@ -920,6 +920,14 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 hashMapOf("name" to place.name, "placeId" to place.placeId)
             }
             
+            // participants 맵 생성: {userId: {nickname: "닉네임"}}
+            // owner는 role이 "owner"로 고정!
+            val participants = hashMapOf<String, Any>(
+                userId to hashMapOf(
+                    "nickname" to ownerNickname
+                )
+            )
+            
             val listData = hashMapOf<String, Any>(
                 "name" to list.name,
                 "status" to list.status,
@@ -927,7 +935,8 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 "ownerId" to userId,
                 "sharedWith" to emptyList<String>(),
                 "inviteCode" to inviteCode,
-                "right" to right
+                "right" to right,
+                "participants" to participants
             )
             
             if (list.country != null) {
@@ -985,7 +994,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     // 초대코드로 리스트 참여
-    suspend fun joinListByInviteCode(inviteCode: String): Result<String> {
+    suspend fun joinListByInviteCode(inviteCode: String, nickname: String): Result<String> {
         return try {
             val userId = auth.currentUser?.uid
             if (userId == null) {
@@ -1021,9 +1030,38 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     add(userId)
                 }
                 
+                // participants 맵에 사용자 추가 (닉네임 연동 목적)
+
+                // 기존 participants 필드 불러오기
+                val existingParticipants = listDoc.get("participants") as? Map<*, *>
+
+                // 기존 participants 필드가 있다면 빈 mutableMap 생성 후 기존 데이터 복사
+                val participants = if (existingParticipants != null) {
+                    val mutableMap = mutableMapOf<String, Any>()
+                    existingParticipants.forEach { (key, value) ->
+                        if (key is String && value is Map<*, *>) {
+                            mutableMap[key] = value
+                        }
+                    }
+                    mutableMap
+                // 기존 participants 필드가 없다면 빈 mutableMap 생성
+                } else {
+                    mutableMapOf<String, Any>()
+                }
+                
+                // 새 사용자 추가
+                participants[userId] = hashMapOf(
+                    "nickname" to nickname
+                )
+                
                 db.collection("lists")
                     .document(listId)
-                    .update("sharedWith", updatedSharedWith)
+                    .update(
+                        mapOf(
+                            "sharedWith" to updatedSharedWith,
+                            "participants" to participants
+                        )
+                    )
                     .await()
                 
                 // 리스트 목록 새로고침
@@ -1090,5 +1128,103 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
             .map { chars.random() }
             .joinToString("")
     }
+    
+    // 리스트 참여자 정보 가져오기
+    suspend fun getListParticipants(listId: String): Result<ListParticipantInfo> {
+        return try {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                return Result.failure(Exception("로그인이 필요합니다."))
+            }
+            
+            val listDoc = db.collection("lists").document(listId).get().await()
+            if (!listDoc.exists()) {
+                return Result.failure(Exception("리스트를 찾을 수 없습니다."))
+            }
+            
+            val ownerId = listDoc.getString("ownerId") ?: ""
+            val sharedWith = (listDoc.get("sharedWith") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+            val right = listDoc.getString("right") ?: "read"
+            val participantsMap = (listDoc.get("participants") as? Map<*, *>) ?: emptyMap<Any?, Any>()
+            
+            // 현재 사용자의 권한 확인
+            val currentUserRole = when {
+                ownerId == userId -> "owner"
+                sharedWith.contains(userId) -> right
+                else -> null
+            }
+            
+            // 참여자 목록 생성 (owner + sharedWith)
+            val participantIds = mutableListOf<String>()
+            if (ownerId.isNotEmpty()) {
+                participantIds.add(ownerId)
+            }
+            participantIds.addAll(sharedWith)
+            
+            // 중복 제거
+            val uniqueParticipantIds = participantIds.distinct()
+            
+            // 각 참여자 정보 가져오기
+            val participants = uniqueParticipantIds.mapNotNull { participantId ->
+                try {
+                    // participants 맵에서 닉네임 가져오기
+                    val participantInfo = participantsMap[participantId] as? Map<*, *>
+                    val nickname = participantInfo?.get("nickname") as? String
+                    
+                    // role은 리스트 레벨의 right 필드 사용 (owner는 예외)
+                    val role = when {
+                        participantId == ownerId -> "owner"
+                        sharedWith.contains(participantId) -> right
+                        else -> "read"
+                    }
+                    
+                    Participant(
+                        userId = participantId,
+                        name = nickname?.takeIf { it.isNotEmpty() } ?: "익명의 사용자",
+                        role = role
+                    )
+                } catch (e: Exception) {
+                    // 사용자 정보를 가져올 수 없으면 기본 정보 사용
+                    Participant(
+                        userId = participantId,
+                        name = "익명의 사용자",
+                        role = if (participantId == ownerId) "owner" else right
+                    )
+                }
+            }
+            
+            // owner 정보 가져오기
+            val ownerInfo = participantsMap[ownerId] as? Map<*, *>
+            val ownerNickname = ownerInfo?.get("nickname") as? String
+            val ownerName = ownerNickname?.takeIf { it.isNotEmpty() } ?: "익명의 사용자"
+            
+            Result.success(ListParticipantInfo(
+                isShared = true,
+                ownerId = ownerId,
+                ownerName = ownerName,
+                currentUserRole = currentUserRole,
+                currentUserId = userId,
+                participants = participants
+            ))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+
+// 참여자 정보 데이터 클래스
+data class ListParticipantInfo(
+    val isShared: Boolean,
+    val ownerId: String?,
+    val ownerName: String?,
+    val currentUserRole: String?, // "owner", "read", "edit"
+    val currentUserId: String?,
+    val participants: List<Participant>
+)
+
+data class Participant(
+    val userId: String,
+    val name: String,
+    val role: String // "owner", "read", "edit"
+)
 

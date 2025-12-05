@@ -14,3 +14,5 @@ val PrimaryBackground = Color(0xFFFECB6B)
 val PrimaryAccent = Color(0xFF023694)
 val SecondaryBackground = Color(0xFFFFE3A8)
 val TertiaryBackground = Color(0xFFFFF2E2)
+
+val BoxBackground = Color(0xFFE7D8C9)

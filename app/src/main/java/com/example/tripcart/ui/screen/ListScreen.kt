@@ -194,9 +194,9 @@ fun ListScreen(
         if (showJoinDialog) {
             JoinByInviteCodeDialog(
                 onDismiss = { showJoinDialog = false },
-                onJoin = { inviteCode ->
+                onJoin = { inviteCode, nickname ->
                     scope.launch {
-                        val result = viewModel.joinListByInviteCode(inviteCode)
+                        val result = viewModel.joinListByInviteCode(inviteCode, nickname)
                         result.onSuccess { listId ->
                             showJoinDialog = false
                             // 참여 성공 시 리스트 상세 화면으로 이동

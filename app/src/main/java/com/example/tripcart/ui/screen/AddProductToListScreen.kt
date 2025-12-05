@@ -132,7 +132,8 @@ fun AddProductToListScreen(
                                 isProcessing = false
                             }
                         },
-                        enabled = !isProcessing && uiState.lists.any { it.isSelected }
+                        // 리스트를 선택하지 않아도 완료 버튼을 누를 수 있도록 보완
+                        enabled = !isProcessing
                     ) {
                         if (isProcessing) {
                             CircularProgressIndicator(
@@ -143,11 +144,7 @@ fun AddProductToListScreen(
                             Text(
                                 "완료",
                                 fontWeight = FontWeight.Bold,
-                                color = if (uiState.lists.any { it.isSelected }) {
-                                    PrimaryAccent
-                                } else {
-                                    Color.Gray
-                                }
+                                color = PrimaryAccent
                             )
                         }
                     }
