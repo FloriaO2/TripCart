@@ -184,40 +184,43 @@ fun MapScreen(
                 }
             }
 
-            // 2) 실시간 위치 업데이트 요청 - 최소 2초, 최대 4초 간격으로 업데이트
+            // 위치 업데이트 요청
             val locationRequest = LocationRequest.Builder(
                 Priority.PRIORITY_BALANCED_POWER_ACCURACY,
                 2000L
             ).apply {
-                setMinUpdateIntervalMillis(2000L)
-                setMaxUpdateDelayMillis(4000L)
+                // 두 조건을 모두 갖추어야만 위치 업데이트 요청 가능!
+                // 2초가 지났어도 위치가 변경되지 않았거나,
+                // 빠르게 위치가 바뀌었어도 이전 요청으로부터 2초가 지나지 않았다면 요청이 안 됨
+                setSmallestDisplacement(1f) // 1m 이상 이동했을 때 업데이트
+                setMinUpdateIntervalMillis(2000L) // 최소 2초 간격 보장 (빠르게 이동해도 2초마다만)
             }.build()
 
             val callback = object : LocationCallback() {
                 override fun onLocationResult(result: LocationResult) {
-                    result.lastLocation?.let { location ->
+                        result.lastLocation?.let { location ->
                         val latLng = LatLng(location.latitude, location.longitude)
+                        
+                        // setSmallestDisplacement(1f): 1m 이상 이동
+                        // setMinUpdateIntervalMillis(2000L): 최소 2초 간격
+                        // 두 조건을 모두 갖추어야만 위치 업데이트 요청 가능!
+                        currentLocation = latLng
 
-                        // 이전 위치와 비교해서 3m 이상 이동했을 때만 업데이트
-
-                        // LocationCallback은 로컬 GPS랑 네트워크 위치를 사용해서
-                        // 위치가 실제로 변경되었을 때만 호출되므로
-                        // 서버 부하랑 관련 없긴 한데
-                        // 또 너무 자주 업데이트하면 배터리 소모가 심해서 일단 3m로 지정!
-
-                        val shouldUpdate = currentLocation?.let { prev ->
-                            val distance = FloatArray(1)
-                            android.location.Location.distanceBetween(
-                                prev.latitude, prev.longitude,
-                                latLng.latitude, latLng.longitude,
-                                distance
-                            )
-                            distance[0] >= 3f // 3m 이상 이동했을 때만 업데이트
-                        } ?: true
-
-                        if (shouldUpdate) {
-                            currentLocation = latLng
-
+                        // 지도 중심이 현재 위치 기준 특정 범위 내에 있을 때만 카메라 이동
+                        val cameraCenter = cameraPositionState.position.target
+                        // 크기가 1인 배열 생성!
+                        // distanceBetween는 리턴할 때 distance[0]가 거리, distance[1]가 방위각 ..
+                        // 이 중 거리만 필요하므로 [0]만 저장할 수 있도록 크기를 1로 고정
+                        val distance = FloatArray(1)
+                        android.location.Location.distanceBetween(
+                            cameraCenter.latitude, cameraCenter.longitude,
+                            latLng.latitude, latLng.longitude,
+                            distance
+                        )
+                        
+                        // 500m 범위 내에 있을 때만 카메라 이동
+                        val MAX_DISTANCE_METERS = 500f
+                        if (distance[0] <= MAX_DISTANCE_METERS) {
                             // animate()는 suspend 함수라 코루틴 스코프 안에서만 호출 가능
                             coroutineScope.launch {
                                 try {
@@ -230,7 +233,7 @@ fun MapScreen(
                                         durationMs = 800
                                     )
                                 } catch (e: Exception) {
-                                    // animation canceled or map not ready
+                                    // 오류 발생
                                 }
                             }
                         }

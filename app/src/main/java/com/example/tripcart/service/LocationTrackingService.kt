@@ -89,12 +89,16 @@ class LocationTrackingService : Service() {
     }
     
     private fun startLocationUpdates() {
+        // 위치 업데이트 요청
         val locationRequest = LocationRequest.Builder(
             Priority.PRIORITY_BALANCED_POWER_ACCURACY,
             2000L
         ).apply {
-            setMinUpdateIntervalMillis(2000L)
-            setMaxUpdateDelayMillis(4000L)
+            // 두 조건을 모두 갖추어야만 위치 업데이트 요청 가능!
+            // 2초가 지났어도 위치가 변경되지 않았거나,
+            // 빠르게 위치가 바뀌었어도 이전 요청으로부터 2초가 지나지 않았다면 요청이 안 됨
+            setSmallestDisplacement(1f) // 1m 이상 이동했을 때 업데이트
+            setMinUpdateIntervalMillis(2000L) // 최소 2초 간격 보장 (빠르게 이동해도 2초마다만)
         }.build()
         
         val callback = object : LocationCallback() {
