@@ -112,11 +112,17 @@ fun ListDetailScreen(
         
         // 리스트 정보 가져오기
         listEntity = viewModel.getListDetail(listId)
-        
-        // 참여자 정보 가져오기 (공유 리스트일 때만)
+    }
+    
+    // 공유 리스트일 때 참여자 정보 실시간 업데이트
+    LaunchedEffect(isFirestoreList, listId) {
         if (isFirestoreList == true) {
-            viewModel.getListParticipants(listId).onSuccess {
-                participantInfo = it
+            viewModel.getListParticipantsFlow(listId).collect { result ->
+                result.onSuccess {
+                    participantInfo = it
+                }.onFailure {
+                    // 에러 처리
+                }
             }
         }
     }
@@ -307,12 +313,14 @@ fun ListDetailScreen(
                                         .padding(24.dp)
                                 ) {
                                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        // 상단: 상태 태그
+                                        // 상단: 상태 뱃지와 초대코드 버튼
                                         Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.Start,
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(horizontal = 2.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
+                                            // 좌측: 진행 상태 텍스트와 상태 뱃지
                                             Row(
                                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                                 verticalAlignment = Alignment.CenterVertically
@@ -348,10 +356,30 @@ fun ListDetailScreen(
                                                     )
                                                 }
                                             }
+                                            
+                                            // 우측: 그룹 추가 버튼 (초대코드 발급)
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(color = PrimaryAccent, shape = RoundedCornerShape(10.dp))
+                                                    .clickable {
+                                                        showInviteCodeDialog = true
+                                                    }
+                                                    .padding(8.dp)
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.group_add),
+                                                    contentDescription = "그룹 추가",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                            }
                                         }
                                         
                                         // 중간: 설명
-                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Column(
+                                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.padding(horizontal = 5.dp)
+                                        ) {
                                             Text(
                                                 text = "나만 사용할 수 있는 리스트입니다.",
                                                 fontSize = 14.sp,
@@ -432,24 +460,16 @@ fun ListDetailScreen(
                                                 }
                                             }
                                             
-                                            // 우측: 그룹 추가 버튼
+                                            // 우측: 그룹 추가 버튼 (초대코드 열람)
                                             Box(
                                                 modifier = Modifier
                                                     .background(color = PrimaryAccent, shape = RoundedCornerShape(10.dp))
                                                     .clickable {
                                                         scope.launch {
-                                                            // 초대코드가 이미 발급되었는지 확인
-                                                            val hasCode = viewModel.hasInviteCode(listId)
-                                                            if (hasCode) {
-                                                                // 이미 발급된 경우 초대코드 표시
-                                                                val code = viewModel.getInviteCode(listId)
-                                                                if (code != null) {
-                                                                    inviteCode = code
-                                                                    showInviteCodeDisplayDialog = true
-                                                                }
-                                                            } else {
-                                                                // 아직 발급되지 않은 경우 발급 다이얼로그 표시
-                                                                showInviteCodeDialog = true
+                                                            val code = viewModel.getInviteCode(listId)
+                                                            if (code != null) {
+                                                                inviteCode = code
+                                                                showInviteCodeDisplayDialog = true
                                                             }
                                                         }
                                                     }
@@ -862,6 +882,11 @@ fun ListDetailScreen(
                             inviteCode = code
                             showInviteCodeDialog = false
                             showInviteCodeDisplayDialog = true
+                            
+                            // 초대코드 발급 후 즉시 공유 리스트 UI로 전환
+                            // Firestore 리스트 버전으로 변경 후 리스트 불러오기
+                            isFirestoreList = true
+                            listEntity = viewModel.getListDetail(listId)
                         }.onFailure { e ->
                             // 에러 처리
                         }

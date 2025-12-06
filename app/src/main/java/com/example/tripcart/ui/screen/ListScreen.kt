@@ -114,6 +114,7 @@ fun ListScreen(
                 ) {
                     items(uiState.lists) { listItem ->
                         var showDeleteDialog by remember { mutableStateOf(false) }
+                        var isOwner by remember { mutableStateOf<Boolean?>(null) }
                         
                         ListCard(
                             status = listItem.status,
@@ -125,36 +126,83 @@ fun ListScreen(
                                 onNavigateToListDetail(listItem.listId)
                             },
                             onDelete = {
-                                showDeleteDialog = true
+                                if (listItem.isFromFirestore) {
+                                    // 공유 리스트
+                                    scope.launch {
+                                        // owner 여부 확인
+                                        isOwner = viewModel.isListOwner(listItem.listId)
+                                        showDeleteDialog = true
+                                    }
+                                } else {
+                                    // 개인 리스트
+                                    isOwner = true
+                                    showDeleteDialog = true
+                                }
                             }
                         )
                         
                         // 삭제 확인 다이얼로그
                         if (showDeleteDialog) {
+                            val (title, message, confirmText) = when {
+                                // 개인 리스트인 경우
+                                !listItem.isFromFirestore -> Triple(
+                                    "리스트 삭제",
+                                    "정말 ${listItem.name} 리스트를 삭제하시겠습니까?\n삭제된 리스트는 복구가 불가능합니다.",
+                                    "삭제"
+                                )
+                                // 공유 리스트의 owner인 경우
+                                listItem.isFromFirestore && isOwner == true -> Triple(
+                                    "리스트 삭제",
+                                    "정말 ${listItem.name} 리스트를 삭제하시겠습니까?\n모든 멤버에게서 리스트가 삭제됩니다.",
+                                    "삭제"
+                                )
+                                // 공유 리스트의 멤버인 경우
+                                listItem.isFromFirestore && isOwner == false -> Triple(
+                                    "리스트 나가기",
+                                    "정말 ${listItem.name} 리스트에서 나가시겠습니까?",
+                                    "나가기"
+                                )
+                                // 기본값
+                                else -> Triple(
+                                    "리스트 삭제",
+                                    "정말 ${listItem.name} 리스트를 삭제하시겠습니까?\n삭제된 리스트는 복구가 불가능합니다.",
+                                    "삭제"
+                                )
+                            }
+                            
                             AlertDialog(
-                                onDismissRequest = { showDeleteDialog = false },
                                 title = {
-                                    Text("리스트 삭제")
+                                    Text(title)
                                 },
                                 text = {
-                                    Text("정말 ${listItem.name} 목록을 삭제하시겠습니까?")
+                                    Text(message)
                                 },
                                 confirmButton = {
                                     TextButton(
                                         onClick = {
                                             viewModel.deleteList(listItem.listId, listItem.isFromFirestore)
                                             showDeleteDialog = false
+                                            isOwner = null
                                         }
                                     ) {
-                                        Text("삭제", color = Color.Red)
+                                        Text(confirmText, color = Color.Red)
                                     }
                                 },
+                                // 취소 버튼 클릭해서 닫을 때
                                 dismissButton = {
                                     TextButton(
-                                        onClick = { showDeleteDialog = false }
+                                        onClick = { 
+                                            showDeleteDialog = false
+                                            isOwner = null
+                                        }
                                     ) {
                                         Text("취소")
                                     }
+                                },
+                                // 뒤로가기 클릭 등 외부 요인으로 인해 닫힐 때
+                                onDismissRequest = { 
+                                    showDeleteDialog = false
+                                    isOwner = null
                                 }
                             )
                         }

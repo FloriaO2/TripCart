@@ -11,6 +11,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.QueryDocumentSnapshot
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.WriteBatch
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
@@ -203,9 +205,21 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     return@addSnapshotListener
                 }
                 
-                snapshot?.documents?.forEach { doc ->
-                    val listEntity = parseListDocument(doc)
-                    mergedLists[listEntity.listId] = listEntity
+                // documentChanges - Firestore에서 제공하는 WebSocket 기반 서버 푸시 방식
+                // 리스트 추가, 수정, 삭제 등을 모두 실시간 반영할 수 있도록 지원!
+                snapshot?.documentChanges?.forEach { change ->
+                    when (change.type) {
+                        com.google.firebase.firestore.DocumentChange.Type.ADDED,
+                        com.google.firebase.firestore.DocumentChange.Type.MODIFIED -> {
+                            val listEntity = parseListDocument(change.document)
+                            // 같은 listId면 덮어쓰기
+                            mergedLists[listEntity.listId] = listEntity
+                        }
+                        com.google.firebase.firestore.DocumentChange.Type.REMOVED -> {
+                            // 삭제된 문서는 mergedLists에서 제거 (Firestore에선 이미 제거된 상태)
+                            mergedLists.remove(change.document.id)
+                        }
+                    }
                 }
                 
                 // 병합된 리스트 전송
@@ -221,9 +235,20 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     return@addSnapshotListener
                 }
                 
-                snapshot?.documents?.forEach { doc ->
-                    val listEntity = parseListDocument(doc)
-                    mergedLists[listEntity.listId] = listEntity
+                // documentChanges - Firestore에서 제공하는 WebSocket 기반 서버 푸시 방식
+                // 리스트 추가, 수정, 삭제 등을 모두 실시간 반영할 수 있도록 지원!
+                snapshot?.documentChanges?.forEach { change ->
+                    when (change.type) {
+                        com.google.firebase.firestore.DocumentChange.Type.ADDED,
+                        com.google.firebase.firestore.DocumentChange.Type.MODIFIED -> {
+                            val listEntity = parseListDocument(change.document)
+                            mergedLists[listEntity.listId] = listEntity
+                        }
+                        com.google.firebase.firestore.DocumentChange.Type.REMOVED -> {
+                            // 삭제된 문서는 mergedLists에서 제거 (Firestore에선 이미 제거된 상태)
+                            mergedLists.remove(change.document.id)
+                        }
+                    }
                 }
                 
                 // 병합된 리스트 전송
@@ -460,33 +485,111 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    // 하위 컬렉션의 모든 문서를 삭제
+    private suspend fun deleteSubcollection(listId: String, subcollectionName: String) {
+        val batchSize = 500 // Firestore 배치 작업 최대 크기
+        var hasMore = true
+        
+        while (hasMore) {
+            // 배치 크기만큼 하위 컬렉션의 문서들을 가져옴
+            val snapshot = db.collection("lists")
+                .document(listId)
+                .collection(subcollectionName)
+                .limit(batchSize.toLong())
+                .get()
+                .await()
+            
+            if (snapshot.isEmpty) {
+                hasMore = false
+                break
+            }
+            
+            // 배치 작업을 통해 일괄적으로 문서 삭제
+            val batch = db.batch()
+            snapshot.documents.forEach { doc ->
+                batch.delete(doc.reference)
+            }
+            // commit - 배치 작업 실행 시작
+            // await - 배치 작업 완료될 때까지 대기
+            batch.commit().await()
+            
+            // 데이터 최대한 많이 가져왔더니 배치 크기 꽉 채워서 가져옴
+            // = 남은 데이터가 있을 수 있으니 hasMore을 true로 설정한 후 다시 삭제 로직 돌리기
+            hasMore = snapshot.size() == batchSize
+        }
+    }
+    
     // 리스트 삭제
     fun deleteList(listId: String, isFromFirestore: Boolean) {
         viewModelScope.launch {
             try {
-                // Firestore에서 삭제 시도 (없으면 패스)
-                try {
-                    db.collection("lists")
-                        .document(listId)
-                        .delete()
-                        .await()
-                } catch (e: Exception) {
-                    // Firestore에 없으면 패스
+                val userId = auth.currentUser?.uid
+                if (userId == null) {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "로그인이 필요합니다."
+                    )
+                    return@launch
                 }
                 
-                // Room DB에서 삭제 시도 (없으면 패스)
-                try {
-                    listDao.deleteListById(listId)
-                } catch (e: Exception) {
-                    // Room DB에 없으면 패스
+                if (isFromFirestore) {
+                    // Firestore 리스트인 경우
+                    val listDoc = db.collection("lists").document(listId).get().await()
+                    if (!listDoc.exists()) {
+                        // 리스트 삭제 실패 에러
+                        return@launch
+                    }
+                    
+                    val ownerId = listDoc.getString("ownerId")
+                    
+                    if (ownerId == userId) {
+                        // 공유 리스트에서 owner가 삭제하는 경우, 하위 컬렉션 포함 리스트 전체 삭제
+                        try {
+                            // 하위 컬렉션 삭제
+                            deleteSubcollection(listId, "list_products")
+                            
+                            // 리스트 삭제
+                            db.collection("lists")
+                                .document(listId)
+                                .delete()
+                                .await()
+                        } catch (e: Exception) {
+                            // 리스트 삭제 실패 에러
+                            return@launch
+                        }
+                    } else {
+                        // 공유 리스트에서 owner 아닌 사람이 나가는 경우, arrayRemove 이용
+                        try {
+                            val updates = mutableMapOf<String, Any>()
+                            
+                            // sharedWith 배열에서 자신 제거
+                            updates["sharedWith"] = FieldValue.arrayRemove(userId)
+                            
+                            // participants 맵에서 자신 제거
+                            updates["participants.$userId"] = FieldValue.delete()
+                            
+                            db.collection("lists")
+                                .document(listId)
+                                .update(updates)
+                                .await()
+                        } catch (e: Exception) {
+                            // 리스트 나가기 실패 에러
+                            return@launch
+                        }
+                    }
+                } else {
+                    // 개인 리스트인 경우, RoomDB에서 삭제
+                    try {
+                        listDao.deleteListById(listId)
+                    } catch (e: Exception) {
+                        // 리스트 삭제 실패 에러
+                        return@launch
+                    }
                 }
                 
                 // 리스트 목록 다시 로드
                 loadLists()
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    errorMessage = "리스트 삭제에 실패했습니다: ${e.message}"
-                )
+                // 리스트 삭제 실패 에러
             }
         }
     }
@@ -1127,6 +1230,123 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         return (1..6)
             .map { chars.random() }
             .joinToString("")
+    }
+    
+    // 현재 사용자가 리스트의 owner인지 확인
+    suspend fun isListOwner(listId: String): Boolean {
+        return try {
+            val userId = auth.currentUser?.uid ?: return false
+            val listDoc = db.collection("lists").document(listId).get().await()
+            if (!listDoc.exists()) {
+                return false
+            }
+            val ownerId = listDoc.getString("ownerId")
+            ownerId == userId
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    // 리스트 참여자 정보를 실시간 Flow로 가져오기
+    fun getListParticipantsFlow(listId: String): Flow<Result<ListParticipantInfo>> = callbackFlow {
+        val userId = auth.currentUser?.uid
+        if (userId == null) {
+            trySend(Result.failure(Exception("로그인이 필요합니다.")))
+            close()
+            return@callbackFlow
+        }
+        
+        val listener = db.collection("lists")
+            .document(listId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(Result.failure(Exception("참여자 정보를 가져오는데 실패했습니다: ${error.message}")))
+                    return@addSnapshotListener
+                }
+                
+                if (snapshot == null || !snapshot.exists()) {
+                    trySend(Result.failure(Exception("리스트를 찾을 수 없습니다.")))
+                    return@addSnapshotListener
+                }
+                
+                try {
+                    val ownerId = snapshot.getString("ownerId") ?: ""
+                    val sharedWith = (snapshot.get("sharedWith") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                    val right = snapshot.getString("right") ?: "read"
+                    val participantsMap = (snapshot.get("participants") as? Map<*, *>) ?: emptyMap<Any?, Any>()
+                    
+                    // 현재 사용자의 권한 확인
+                    val currentUserRole = when {
+                        ownerId == userId -> "owner"
+                        sharedWith.contains(userId) -> right
+                        else -> null
+                    }
+                    
+                    // 참여자 목록 생성 (owner + sharedWith)
+                    val participantIds = mutableListOf<String>()
+                    if (ownerId.isNotEmpty()) {
+                        participantIds.add(ownerId)
+                    }
+                    participantIds.addAll(sharedWith)
+                    
+                    // 중복 제거
+                    val uniqueParticipantIds = participantIds.distinct()
+                    
+                    // 각 참여자 정보 가져오기
+                    val participants = uniqueParticipantIds.mapNotNull { participantId ->
+                        try {
+                            // participants 맵에서 닉네임 가져오기
+                            val participantInfo = participantsMap[participantId] as? Map<*, *>
+                            val nickname = participantInfo?.get("nickname") as? String
+                            
+                            // role은 리스트 레벨의 right 필드 사용 (owner는 예외)
+                            val role = when {
+                                participantId == ownerId -> "owner"
+                                sharedWith.contains(participantId) -> right
+                                else -> "read"
+                            }
+                            
+                            Participant(
+                                userId = participantId,
+                                name = nickname?.takeIf { it.isNotEmpty() } ?: "익명의 사용자",
+                                role = role
+                            )
+                        } catch (e: Exception) {
+                            // 사용자 정보를 가져올 수 없으면 기본 정보 사용
+                            Participant(
+                                userId = participantId,
+                                name = "익명의 사용자",
+                                role = if (participantId == ownerId) "owner" else right
+                            )
+                        }
+                    }
+                    
+                    // owner 정보 가져오기
+                    val ownerInfo = participantsMap[ownerId] as? Map<*, *>
+                    // 서버에서 불러오는 값
+                    val ownerNickname = ownerInfo?.get("nickname") as? String
+                    // 실제로 사용할 값 (ownerNickname이 비어있으면 "익명의 사용자" 사용)
+                    val ownerName = ownerNickname?.takeIf { it.isNotEmpty() } ?: "익명의 사용자"
+                    
+                    val participantInfo = ListParticipantInfo(
+                        isShared = true,
+                        ownerId = ownerId,
+                        ownerName = ownerName,
+                        currentUserRole = currentUserRole,
+                        currentUserId = userId,
+                        participants = participants
+                    )
+                    
+                    trySend(Result.success(participantInfo))
+                } catch (e: Exception) {
+                    trySend(Result.failure(e))
+                }
+            }
+        
+        // 코루틴 시스템이 Flow 취소를 감지하면 자동으로 awaitClose 실행 - 리스너 해제
+        awaitClose {
+            listener.remove()
+        }
     }
     
     // 리스트 참여자 정보 가져오기
