@@ -56,7 +56,9 @@ fun TripCartNavGraph(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
     startDestination: String = Screen.Login.route,
-    listViewModel: ListViewModel? = null // 외부에서 전달받거나 내부에서 생성
+    listViewModel: ListViewModel? = null, // 외부에서 전달받거나 내부에서 생성
+    onRequestNotificationPermission: () -> Unit = {}, // 알림 권한 요청 콜백
+    onRequestBackgroundLocationPermission: () -> Unit = {} // 백그라운드 위치 권한 요청 콜백
 ) {
     val auth = FirebaseAuth.getInstance()
     
@@ -353,6 +355,8 @@ fun TripCartNavGraph(
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }
                 },
+                onRequestNotificationPermission = onRequestNotificationPermission,
+                onRequestBackgroundLocationPermission = onRequestBackgroundLocationPermission,
                 onNavigateToRoute = { route ->
                     when (route) {
                         Screen.Home.route, "active_list" -> {

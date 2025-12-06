@@ -192,7 +192,9 @@ fun MapScreen(
                 // 두 조건을 모두 갖추어야만 위치 업데이트 요청 가능!
                 // 2초가 지났어도 위치가 변경되지 않았거나,
                 // 빠르게 위치가 바뀌었어도 이전 요청으로부터 2초가 지나지 않았다면 요청이 안 됨
-                setSmallestDisplacement(1f) // 1m 이상 이동했을 때 업데이트
+                // 원래는 setSmallestDisplacement(1f)로 등록해놨었는데
+                // Android 12부터는 setMinUpdateDistanceMeters(1f)를 사용한다고 함 ..
+                setMinUpdateDistanceMeters(1f) // 1m 이상 이동했을 때 업데이트
                 setMinUpdateIntervalMillis(2000L) // 최소 2초 간격 보장 (빠르게 이동해도 2초마다만)
             }.build()
 

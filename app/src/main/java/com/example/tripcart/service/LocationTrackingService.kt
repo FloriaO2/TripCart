@@ -1,172 +1,72 @@
 package com.example.tripcart.service
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
-import android.os.Binder
-import android.os.Build
 import android.os.IBinder
-import android.os.Looper
-import androidx.core.app.NotificationCompat
-import com.example.tripcart.MainActivity
-import com.google.android.gms.location.*
+import com.example.tripcart.data.local.TripCartDatabase
+import com.example.tripcart.util.GeofenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class LocationTrackingService : Service() {
     
-    private val binder = LocalBinder()
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    
-    private var fusedLocationClient: FusedLocationProviderClient? = null
-    private var locationCallback: LocationCallback? = null
-    private var sharedPreferences: SharedPreferences? = null
-    
-    inner class LocalBinder : Binder() {
-        fun getService(): LocationTrackingService = this@LocationTrackingService
-    }
+    // SupervisorJob: 각 자식 코루틴의 오류가 서로에게 영향을 주지 않아 독립적으로 작동 가능
+    // Dispatchers.IO: 입출력 작업 전용 - UI 스레드와 별도로 작업을 처리함으로써 성능 유지
+    //                                  (백그라운드 작업에 유용)
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
     override fun onCreate() {
         super.onCreate()
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        sharedPreferences = getSharedPreferences("location_tracking", Context.MODE_PRIVATE)
-        createNotificationChannel()
+        
+        // 서비스 시작 시 모든 장소에 대한 Geofence 등록
+        // Geofence는 시스템 레벨에서 관리되므로 등록 후 서비스 종료 가능
+        serviceScope.launch {
+            registerAllGeofences()
+            // Geofence 등록 완료 후 서비스 종료
+            stopSelf()
+        }
     }
     
-    override fun onBind(intent: Intent?): IBinder {
-        return binder
+    // Android의 Service 클래스에서 구현 없이 선언만 달랑 해놔버려서 함수 설명을 해놓긴 해야 함 (생략 불가)
+    override fun onBind(intent: Intent?): IBinder? {
+        // 바인딩을 사용하지 않으므로 null 반환
+        return null
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, createNotification())
-        startLocationUpdates()
-        return START_STICKY // 서비스가 종료되어도 재시작
+        // Geofence는 시스템 레벨에서 관리되므로 Foreground Service 불필요 -> 등록만 하고 종료
+        return START_NOT_STICKY // 서비스가 강제 종료되어도 재시작하지 않음
+                                // (Geofence가 이미 등록되어있으므로!)
     }
     
+    // 삭제해도 될 것 같기도 ..?
     override fun onDestroy() {
         super.onDestroy()
-        stopLocationUpdates()
+        // Geofence는 시스템이 관리하므로 제거하지 않음
     }
     
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "위치 추적",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "백그라운드에서 위치를 추적합니다"
-            }
-            
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
-    
-    private fun createNotification(): Notification {
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("위치 추적 중")
-            .setContentText("백그라운드에서 위치를 추적하고 있습니다")
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation) // 위치 아이콘 사용
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .build()
-    }
-    
-    private fun startLocationUpdates() {
-        // 위치 업데이트 요청
-        val locationRequest = LocationRequest.Builder(
-            Priority.PRIORITY_BALANCED_POWER_ACCURACY,
-            2000L
-        ).apply {
-            // 두 조건을 모두 갖추어야만 위치 업데이트 요청 가능!
-            // 2초가 지났어도 위치가 변경되지 않았거나,
-            // 빠르게 위치가 바뀌었어도 이전 요청으로부터 2초가 지나지 않았다면 요청이 안 됨
-            setSmallestDisplacement(1f) // 1m 이상 이동했을 때 업데이트
-            setMinUpdateIntervalMillis(2000L) // 최소 2초 간격 보장 (빠르게 이동해도 2초마다만)
-        }.build()
-        
-        val callback = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { location ->
-                    // 위치 데이터 저장
-                    saveLocation(location.latitude, location.longitude)
-                }
-            }
-        }
-        
-        locationCallback = callback
-        
+    // 모든 장소에 대한 Geofence 등록 (초기화용)
+    private suspend fun registerAllGeofences() {
         try {
-            fusedLocationClient?.requestLocationUpdates(
-                locationRequest,
-                callback,
-                Looper.getMainLooper()
-            )
-        } catch (e: SecurityException) {
-            // 권한 오류
-        }
-    }
-    
-    private fun stopLocationUpdates() {
-        locationCallback?.let { callback ->
-            fusedLocationClient?.removeLocationUpdates(callback)
-            locationCallback = null
-        }
-    }
-    
-    private fun saveLocation(latitude: Double, longitude: Double) {
-        serviceScope.launch {
-            sharedPreferences?.edit()?.apply {
-                putFloat("last_latitude", latitude.toFloat())
-                putFloat("last_longitude", longitude.toFloat())
-                putLong("last_update_time", System.currentTimeMillis())
-                apply()
-            }
-        }
-    }
-    
-    fun getLastLocation(): Pair<Double, Double>? {
-        val lat = sharedPreferences?.getFloat("last_latitude", 0f)?.toDouble()
-        val lng = sharedPreferences?.getFloat("last_longitude", 0f)?.toDouble()
-        return if (lat != null && lng != null && lat != 0.0 && lng != 0.0) {
-            Pair(lat, lng)
-        } else {
-            null
+            val roomDb = TripCartDatabase.getDatabase(applicationContext)
+            val placeDao = roomDb.placeDao()
+            val places = placeDao.getAllPlaces().first()
+            
+            // GeofenceManager를 사용하여 모든 Geofence 등록 (await로 완료 대기)
+            GeofenceManager.registerAllGeofences(applicationContext, places)
+        } catch (e: Exception) {
+            // 에러 발생
         }
     }
     
     companion object {
-        private const val CHANNEL_ID = "location_tracking_channel"
-        private const val NOTIFICATION_ID = 1
-        
         fun startService(context: Context) {
             val intent = Intent(context, LocationTrackingService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
-        }
-        
-        fun stopService(context: Context) {
-            val intent = Intent(context, LocationTrackingService::class.java)
-            context.stopService(intent)
+            context.startService(intent)
         }
     }
 }

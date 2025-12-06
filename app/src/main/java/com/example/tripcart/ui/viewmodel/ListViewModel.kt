@@ -7,6 +7,7 @@ import com.example.tripcart.data.local.TripCartDatabase
 import com.example.tripcart.data.local.dao.*
 import com.example.tripcart.data.local.entity.*
 import com.example.tripcart.ui.viewmodel.PlaceDetails
+import com.example.tripcart.util.GeofenceManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.QueryDocumentSnapshot
@@ -14,6 +15,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.WriteBatch
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -62,6 +64,18 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     
     init {
         loadLists()
+        
+        // 앱 최초 실행 시에만 모든 리스트의 장소들을 places 테이블로 동기화
+        viewModelScope.launch {
+            val prefs = application.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+            val isFirstSyncDone = prefs.getBoolean("is_first_sync_done", false)
+            
+            if (!isFirstSyncDone) {
+                syncPlacesFromLists()
+                // 동기화 완료 후 플래그 설정
+                prefs.edit().putBoolean("is_first_sync_done", true).apply()
+            }
+        }
     }
     
     // 로컬 DB와 Firestore에서 리스트 로드
@@ -296,6 +310,136 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
     
+    // 모든 리스트의 장소들을 RoomDB의 places 테이블로 동기화
+    suspend fun syncPlacesFromLists() {
+        try {
+            // Room DB의 모든 리스트 가져오기
+            val roomLists = listDao.getAllLists().first()
+            
+            // Firestore의 모든 리스트 가져오기
+            val userId = auth.currentUser?.uid ?: return
+            val ownerListsSnapshot = db.collection("lists")
+                .whereEqualTo("ownerId", userId)
+                .get()
+                .await()
+            
+            val sharedListsSnapshot = db.collection("lists")
+                .whereArrayContains("sharedWith", userId)
+                .get()
+                .await()
+            
+            // Room DB 내 리스트의 장소들을 places 테이블에 저장/업데이트
+            roomLists.forEach { list ->
+                list.places.forEach { place ->
+                    // Firestore의 places 컬렉션에서 장소 정보 가져오기
+                    try {
+                        val placeDoc = db.collection("places")
+                            .document(place.placeId)
+                            .get()
+                            .await()
+                        
+                        if (placeDoc.exists()) {
+                            val placeData = placeDoc.data ?: return@forEach
+                            val lat = (placeData["latitude"] as? Double) ?: (placeData["lat"] as? Double) ?: 0.0
+                            val lng = (placeData["longitude"] as? Double) ?: (placeData["lng"] as? Double) ?: 0.0
+                            val placeName = placeData["name"] as? String ?: place.name
+                            
+                            // places 테이블에 저장/업데이트
+                            val existingPlace = placeDao.getPlaceById(place.placeId)
+                            if (existingPlace != null) {
+                                // 기존 장소가 있지만 listId은 없다면 list 배열에 listId 추가
+                                val updatedListIds = if (list.listId !in existingPlace.listId) {
+                                    existingPlace.listId + list.listId
+                                } else {
+                                    // 기존 장소에 이미 listId도 있다면 변경 없이 그대로 유지
+                                    existingPlace.listId
+                                }
+                                placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
+                            } else {
+                                // 기존 장소가 없으면 장소부터 새로 생성
+                                val newPlace = PlaceEntity(
+                                    placeId = place.placeId,
+                                    lat = lat,
+                                    lng = lng,
+                                    name = placeName,
+                                    listId = listOf(list.listId)
+                                )
+                                placeDao.insertPlace(newPlace)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // 장소 정보 가져오기 실패
+                    }
+                }
+            }
+            
+            // Firestore 내 리스트의 장소들을 places 테이블에 저장/업데이트
+            val allFirestoreDocs = mutableListOf<DocumentSnapshot>() // 빈 리스트 생성
+            ownerListsSnapshot.documents.forEach { allFirestoreDocs.add(it) }
+            sharedListsSnapshot.documents.forEach { doc ->
+                if (!allFirestoreDocs.any { it.id == doc.id }) { // owner 리스트와 중복되지 않도록 체크
+                    allFirestoreDocs.add(doc)
+                }
+            }
+            
+            allFirestoreDocs.forEach { doc ->
+                val placesList = (doc.get("places") as? List<*>) ?: emptyList<Any?>()
+                placesList.forEach { placeMap ->
+                    when (placeMap) {
+                        is Map<*, *> -> {
+                            val placeId = placeMap["placeId"] as? String
+                            val placeName = placeMap["name"] as? String
+                            
+                            if (placeId != null && placeName != null) {
+                                try {
+                                    // Firestore의 places 컬렉션에서 장소 정보 가져오기
+                                    val placeDoc = db.collection("places")
+                                        .document(placeId)
+                                        .get()
+                                        .await()
+                                    
+                                    if (placeDoc.exists()) {
+                                        val placeData = placeDoc.data ?: return@forEach
+                                        val lat = (placeData["latitude"] as? Double) ?: (placeData["lat"] as? Double) ?: 0.0
+                                        val lng = (placeData["longitude"] as? Double) ?: (placeData["lng"] as? Double) ?: 0.0
+                                        val placeNameFromFirestore = placeData["name"] as? String ?: placeName
+                                        
+                                        // places 테이블에 저장/업데이트
+                                        val existingPlace = placeDao.getPlaceById(placeId)
+                                        if (existingPlace != null) {
+                                            // 기존 장소가 있지만 listId은 없다면 list 배열에 listId 추가
+                                            val updatedListIds = if (doc.id !in existingPlace.listId) {
+                                                existingPlace.listId + doc.id
+                                            } else {
+                                                // 기존 장소에 이미 listId도 있다면 변경 없이 그대로 유지
+                                                existingPlace.listId
+                                            }
+                                            placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
+                                        } else {
+                                            // 기존 장소가 없으면 장소부터 새로 생성
+                                            val newPlace = PlaceEntity(
+                                                placeId = placeId,
+                                                lat = lat,
+                                                lng = lng,
+                                                name = placeNameFromFirestore,
+                                                listId = listOf(doc.id)
+                                            )
+                                            placeDao.insertPlace(newPlace)
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    // 장소 정보 가져오기 실패
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // 동기화 실패 시 무시
+        }
+    }
+    
     // Firestore에서 리스트 동기화
     private suspend fun syncListsFromFirestore() {
         val userId = auth.currentUser?.uid ?: return
@@ -436,13 +580,16 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                                 placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
                             } else {
                                 // 기존 장소가 없으면 새로 생성
-                                placeDao.insertPlace(PlaceEntity(
+                                val newPlace = PlaceEntity(
                                     placeId = placeDetails.placeId,
                                     lat = lat,
                                     lng = lng,
                                     name = placeName,
                                     listId = listOf(listItem.listId)
-                                ))
+                                )
+                                placeDao.insertPlace(newPlace)
+                                // Geofence 등록
+                                GeofenceManager.addGeofence(getApplication(), newPlace)
                             }
                         }
                     } catch (e: Exception) {
@@ -490,13 +637,16 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                                 placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
                             } else {
                                 // 기존 장소가 없으면 새로 생성
-                                placeDao.insertPlace(PlaceEntity(
+                                val newPlace = PlaceEntity(
                                     placeId = placeDetails.placeId,
                                     lat = lat,
                                     lng = lng,
                                     name = placeName,
                                     listId = listOf(listItem.listId)
-                                ))
+                                )
+                                placeDao.insertPlace(newPlace)
+                                // Geofence 등록
+                                GeofenceManager.addGeofence(getApplication(), newPlace)
                             }
                         }
                     }
@@ -553,13 +703,16 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
             } else {
                 // 기존 장소가 없으면 새로 생성
-                placeDao.insertPlace(PlaceEntity(
+                val newPlace = PlaceEntity(
                     placeId = placeDetails.placeId,
                     lat = lat,
                     lng = lng,
                     name = placeName,
                     listId = listOf(listId)
-                ))
+                )
+                placeDao.insertPlace(newPlace)
+                // Geofence 등록
+                GeofenceManager.addGeofence(getApplication(), newPlace)
             }
             
             // 리스트 목록 새로고침
@@ -690,6 +843,8 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                         val updatedListIds = place.listId.filter { it != listId }
                         if (updatedListIds.isEmpty()) {
                             // listId 배열이 비어있으면 해당 장소 데이터 삭제
+                            // Geofence 제거
+                            GeofenceManager.removeGeofence(getApplication(), place.placeId, place.name)
                             placeDao.deletePlaceById(placeId)
                         } else {
                             // listId 배열에서 해당 리스트 ID 제거

@@ -1,6 +1,8 @@
 package com.example.tripcart.data.local
 
+import android.content.Context
 import androidx.room.Database
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.example.tripcart.data.local.converters.ListConverter
@@ -14,6 +16,7 @@ import com.example.tripcart.data.local.entity.*
  * 2. DAO(데이터 접근 인터페이스) 제공
  * 3. TypeConverter를 적용하여 복잡한 타입 변환 지원
  */
+
 @Database(
     entities = [
         ListEntity::class,           // 리스트 정보 테이블 (places 필드에 Place 객체 리스트 포함)
@@ -39,6 +42,7 @@ import com.example.tripcart.data.local.entity.*
                                      //       -> 저장, 수정을 분리하고 수정은 UPDATE로 구현
                                      // v8: ListProductEntity.productId를 nullable로 변경 (사용자 생성 상품과 Firestore 공개 상품 구분)
                                      // v9: PlaceEntity 추가 (백그라운드 위치 추적 및 푸시 알림용)
+
     exportSchema = false             // 스키마 내보내기 비활성화
 )
 @TypeConverters(ListConverter::class)  // ListConverter는 List<String>, List<Place> 타입 변환에 필요
@@ -46,5 +50,26 @@ abstract class TripCartDatabase : RoomDatabase() {
     abstract fun listDao(): ListDao              // 리스트 관련 데이터 접근
     abstract fun listProductDao(): ListProductDao // 상품 데이터 접근
     abstract fun placeDao(): PlaceDao            // 장소 데이터 접근
+    
+    companion object {
+        @Volatile // 한 스레드가 변경한 값이 다른 스레드에 즉시 반영 - 멀티스레드 환경에 유리
+        private var INSTANCE: TripCartDatabase? = null
+        
+        fun getDatabase(context: Context): TripCartDatabase {
+            // synchronized: 한 스레드가 사용 중이면 다른 스레드는 대기!
+            // - 동시에 접근했을 때 INSTANCE가 중복 생성되지 않도록 보완 및 동기화
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    TripCartDatabase::class.java,
+                    "tripcart_database"
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
+                INSTANCE = instance
+                instance // 반환값
+            }
+        }
+    }
 }
 
