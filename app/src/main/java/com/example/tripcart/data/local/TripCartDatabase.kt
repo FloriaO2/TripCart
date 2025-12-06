@@ -17,9 +17,10 @@ import com.example.tripcart.data.local.entity.*
 @Database(
     entities = [
         ListEntity::class,           // 리스트 정보 테이블 (places 필드에 Place 객체 리스트 포함)
-        ListProductEntity::class     // 상품 정보 테이블
+        ListProductEntity::class,    // 상품 정보 테이블
+        PlaceEntity::class           // 장소 정보 테이블 (백그라운드 위치 추적용)
     ],
-    version = 8,                     // 데이터베이스 스키마 버전
+    version = 9,                     // 데이터베이스 스키마 버전
                                      // v1: 초기 버전
                                      // v2: BoughtStatusEntity 제거
                                      //     - Firestore 권한 설정때문에 일관성을 위해 BoughtStatusEntity 분리 후 사용 중이었는데
@@ -37,11 +38,13 @@ import com.example.tripcart.data.local.entity.*
                                      //       리스트 수정할 때마다 CASCADE 되어있는 list_products가 함께 삭제
                                      //       -> 저장, 수정을 분리하고 수정은 UPDATE로 구현
                                      // v8: ListProductEntity.productId를 nullable로 변경 (사용자 생성 상품과 Firestore 공개 상품 구분)
+                                     // v9: PlaceEntity 추가 (백그라운드 위치 추적 및 푸시 알림용)
     exportSchema = false             // 스키마 내보내기 비활성화
 )
 @TypeConverters(ListConverter::class)  // ListConverter는 List<String>, List<Place> 타입 변환에 필요
 abstract class TripCartDatabase : RoomDatabase() {
     abstract fun listDao(): ListDao              // 리스트 관련 데이터 접근
     abstract fun listProductDao(): ListProductDao // 상품 데이터 접근
+    abstract fun placeDao(): PlaceDao            // 장소 데이터 접근
 }
 

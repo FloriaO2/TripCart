@@ -58,6 +58,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     
     private val listDao = roomDb.listDao()
     private val listProductDao = roomDb.listProductDao()
+    private val placeDao = roomDb.placeDao()
     
     init {
         loadLists()
@@ -366,6 +367,20 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         return try {
             val selectedLists = _uiState.value.lists.filter { it.isSelected }
             
+            // Firestore의 places 컬렉션에서 장소 정보 가져오기 (lat, lng, name)
+            val placeDoc = db.collection("places")
+                .document(placeDetails.placeId)
+                .get()
+                .await()
+            
+            if (!placeDoc.exists()) {
+                return Result.failure(Exception("장소 정보를 찾을 수 없습니다."))
+            }
+            
+            val placeData = placeDoc.data ?: return Result.failure(Exception("장소 정보가 없습니다."))
+            val lat = (placeData["latitude"] as? Double) ?: (placeData["lat"] as? Double) ?: 0.0
+            val lng = (placeData["longitude"] as? Double) ?: (placeData["lng"] as? Double) ?: 0.0
+            val placeName = placeData["name"] as? String ?: placeDetails.name
             
             // 각 선택된 리스트에 장소 추가
             selectedLists.forEach { listItem ->
@@ -408,6 +423,27 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                                 .document(listItem.listId)
                                 .update(updateData)
                                 .await()
+                            
+                            // RoomDB의 places 테이블에 저장/업데이트
+                            val existingPlace = placeDao.getPlaceById(placeDetails.placeId)
+                            if (existingPlace != null) {
+                                // 기존 장소가 있으면 listId 배열에 추가
+                                val updatedListIds = if (listItem.listId !in existingPlace.listId) {
+                                    existingPlace.listId + listItem.listId
+                                } else {
+                                    existingPlace.listId
+                                }
+                                placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
+                            } else {
+                                // 기존 장소가 없으면 새로 생성
+                                placeDao.insertPlace(PlaceEntity(
+                                    placeId = placeDetails.placeId,
+                                    lat = lat,
+                                    lng = lng,
+                                    name = placeName,
+                                    listId = listOf(listItem.listId)
+                                ))
+                            }
                         }
                     } catch (e: Exception) {
                         throw Exception("${listItem.name} 리스트에 장소 추가 실패: ${e.message}")
@@ -441,6 +477,27 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                             } else {
                                 listDao.updateList(list.copy(places = updatedPlaces))
                             }
+                            
+                            // RoomDB의 places 테이블에 저장/업데이트
+                            val existingPlace = placeDao.getPlaceById(placeDetails.placeId)
+                            if (existingPlace != null) {
+                                // 기존 장소가 있으면 listId 배열에 추가
+                                val updatedListIds = if (listItem.listId !in existingPlace.listId) {
+                                    existingPlace.listId + listItem.listId
+                                } else {
+                                    existingPlace.listId
+                                }
+                                placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
+                            } else {
+                                // 기존 장소가 없으면 새로 생성
+                                placeDao.insertPlace(PlaceEntity(
+                                    placeId = placeDetails.placeId,
+                                    lat = lat,
+                                    lng = lng,
+                                    name = placeName,
+                                    listId = listOf(listItem.listId)
+                                ))
+                            }
                         }
                     }
                 }
@@ -457,6 +514,21 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         return try {
             val listId = UUID.randomUUID().toString()
             
+            // Firestore의 places 컬렉션에서 장소 정보 가져오기 (lat, lng, name)
+            val placeDoc = db.collection("places")
+                .document(placeDetails.placeId)
+                .get()
+                .await()
+            
+            if (!placeDoc.exists()) {
+                return Result.failure(Exception("장소 정보를 찾을 수 없습니다."))
+            }
+            
+            val placeData = placeDoc.data ?: return Result.failure(Exception("장소 정보가 없습니다."))
+            val lat = (placeData["latitude"] as? Double) ?: (placeData["lat"] as? Double) ?: 0.0
+            val lng = (placeData["longitude"] as? Double) ?: (placeData["lng"] as? Double) ?: 0.0
+            val placeName = placeData["name"] as? String ?: placeDetails.name
+            
             // 로컬 DB에 리스트 생성
             val listEntity = ListEntity(
                 listId = listId,
@@ -468,6 +540,27 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 firestoreSynced = false
             )
             listDao.insertList(listEntity)
+            
+            // RoomDB의 places 테이블에 저장/업데이트
+            val existingPlace = placeDao.getPlaceById(placeDetails.placeId)
+            if (existingPlace != null) {
+                // 기존 장소가 있으면 listId 배열에 추가
+                val updatedListIds = if (listId !in existingPlace.listId) {
+                    existingPlace.listId + listId
+                } else {
+                    existingPlace.listId
+                }
+                placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
+            } else {
+                // 기존 장소가 없으면 새로 생성
+                placeDao.insertPlace(PlaceEntity(
+                    placeId = placeDetails.placeId,
+                    lat = lat,
+                    lng = lng,
+                    name = placeName,
+                    listId = listOf(listId)
+                ))
+            }
             
             // 리스트 목록 새로고침
             loadLists()
@@ -531,6 +624,10 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
                 
+                // 삭제할 리스트의 장소 목록 가져오기 (places 테이블 정리용)
+                val listItem = _uiState.value.lists.find { it.listId == listId }
+                val placeIds = listItem?.places?.map { it.placeId } ?: emptyList()
+                
                 if (isFromFirestore) {
                     // Firestore 리스트인 경우
                     val listDoc = db.collection("lists").document(listId).get().await()
@@ -583,6 +680,21 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     } catch (e: Exception) {
                         // 리스트 삭제 실패 에러
                         return@launch
+                    }
+                }
+                
+                // places 테이블에서 해당 리스트 ID 제거 및 정리
+                placeIds.forEach { placeId ->
+                    val place = placeDao.getPlaceById(placeId)
+                    if (place != null) {
+                        val updatedListIds = place.listId.filter { it != listId }
+                        if (updatedListIds.isEmpty()) {
+                            // listId 배열이 비어있으면 해당 장소 데이터 삭제
+                            placeDao.deletePlaceById(placeId)
+                        } else {
+                            // listId 배열에서 해당 리스트 ID 제거
+                            placeDao.updatePlace(place.copy(listId = updatedListIds))
+                        }
                     }
                 }
                 
