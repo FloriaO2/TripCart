@@ -26,5 +26,3 @@ object NotificationPermissionHelper {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU // Android 13 이상일 때
     }
 }
-
-

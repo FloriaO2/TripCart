@@ -27,5 +27,3 @@ object BackgroundLocationPermissionHelper {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q // Android 10 이상일 때
     }
 }
-
-
