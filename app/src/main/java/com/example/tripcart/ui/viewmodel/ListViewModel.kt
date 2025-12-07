@@ -591,6 +591,33 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                                 // Geofence 등록
                                 GeofenceManager.addGeofence(getApplication(), newPlace)
                             }
+                            
+                            // Firestore 리스트에 장소 추가 시 랭킹 데이터 업데이트
+                            // 리스트에 이미 상품이 있는 경우, 해당 상품들의 랭킹 데이터 업데이트
+                            val finalCountry = currentCountry ?: placeDetails.country
+                            if (finalCountry != null) {
+                                // 리스트의 상품 목록 가져오기
+                                val productsSnapshot = db.collection("lists")
+                                    .document(listItem.listId)
+                                    .collection("list_products")
+                                    .get()
+                                    .await()
+                                
+                                productsSnapshot.documents.forEach { productDoc ->
+                                    val productId = productDoc.getString("productId")
+                                    if (productId != null && productId.isNotEmpty()) {
+                                        // 국가별 카운트는 리스트당 한 번만 추가 (첫 장소인 경우만)
+                                        val shouldUpdateCountry = currentCountry == null && placeDetails.country != null
+                                        if (shouldUpdateCountry) {
+                                            // 국가 totalCount, 장소 totalCount, 장소별 카운트 등 모두 업데이트
+                                            updateProductStats(finalCountry, listOf(placeDetails.placeId), productId, increment = true)
+                                        } else {
+                                            // 장소별 카운트만 업데이트
+                                            updateProductStatsForPlace(placeDetails.placeId, productId, increment = true)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     } catch (e: Exception) {
                         throw Exception("${listItem.name} 리스트에 장소 추가 실패: ${e.message}")
@@ -647,6 +674,29 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                                 placeDao.insertPlace(newPlace)
                                 // Geofence 등록
                                 GeofenceManager.addGeofence(getApplication(), newPlace)
+                            }
+                            
+                            // Room DB 리스트에 장소 추가 시 랭킹 데이터 업데이트
+                            // 리스트에 이미 상품이 있는 경우, 해당 상품들의 랭킹 데이터 업데이트
+                            val finalCountry = list.country ?: placeDetails.country
+                            if (finalCountry != null) {
+                                // 리스트의 상품 목록 가져오기
+                                val products = listProductDao.getProductsByListId(listItem.listId).first()
+                                
+                                products.forEach { product ->
+                                    val productId = product.productId
+                                    if (productId != null && productId.isNotEmpty()) {
+                                        // 국가별 카운트는 리스트당 한 번만 추가 (첫 장소인 경우만)
+                                        val shouldUpdateCountry = list.country == null && placeDetails.country != null
+                                        if (shouldUpdateCountry) {
+                                            // 국가 totalCount, 장소 totalCount, 장소별 카운트 등 모두 업데이트
+                                            updateProductStats(finalCountry, listOf(placeDetails.placeId), productId, increment = true)
+                                        } else {
+                                            // 장소별 카운트만 업데이트
+                                            updateProductStatsForPlace(placeDetails.placeId, productId, increment = true)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -780,9 +830,10 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 // 삭제할 리스트의 장소 목록 가져오기 (places 테이블 정리용)
                 val listItem = _uiState.value.lists.find { it.listId == listId }
                 val placeIds = listItem?.places?.map { it.placeId } ?: emptyList()
+                val country = listItem?.country
                 
                 if (isFromFirestore) {
-                    // Firestore 리스트인 경우
+                    // Firestore 리스트인 경우, Firestore lists 컬렉션에서 삭제
                     val listDoc = db.collection("lists").document(listId).get().await()
                     if (!listDoc.exists()) {
                         // 리스트 삭제 실패 에러
@@ -790,6 +841,25 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     
                     val ownerId = listDoc.getString("ownerId")
+                    val listCountry = listDoc.getString("country")
+                    
+                    // 랭킹 데이터 업데이트 (리스트 삭제 전에 수행)
+                    if (listCountry != null) {
+                        val productsSnapshot = db.collection("lists")
+                            .document(listId)
+                            .collection("list_products")
+                            .get()
+                            .await()
+                        
+                        productsSnapshot.documents.forEach { productDoc ->
+                            val productId = productDoc.getString("productId")
+                            // Firestore 리스트에서 불러온 상품일 경우
+                            if (productId != null && productId.isNotEmpty()) {
+                                // 국가별 카운트 감소
+                                updateProductStats(listCountry, placeIds, productId, increment = false)
+                            }
+                        }
+                    }
                     
                     if (ownerId == userId) {
                         // 공유 리스트에서 owner가 삭제하는 경우, 하위 컬렉션 포함 리스트 전체 삭제
@@ -829,6 +899,20 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     // 개인 리스트인 경우, RoomDB에서 삭제
                     try {
+                        // 랭킹 데이터 업데이트 (리스트 삭제 전에 수행)
+                        if (country != null) {
+                            val products = listProductDao.getProductsByListId(listId).first()
+                            
+                            products.forEach { product ->
+                                val productId = product.productId
+                                // Firestore 리스트에서 불러온 상품일 경우
+                                if (productId != null && productId.isNotEmpty()) {
+                                    // 국가별 카운트 감소
+                                    updateProductStats(country, placeIds, productId, increment = false)
+                                }
+                            }
+                        }
+                        
                         listDao.deleteListById(listId)
                     } catch (e: Exception) {
                         // 리스트 삭제 실패 에러
@@ -936,6 +1020,138 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    // 랭킹 데이터 업데이트 (Aggregation Collection)
+    private suspend fun updateProductStats(
+        country: String?,
+        placeIds: List<String>,
+        productId: String,
+        increment: Boolean = true
+    ) {
+        if (country == null || productId.isEmpty()) return
+        
+        val change = if (increment) 1 else -1
+        
+        try {
+            val batch = db.batch()
+            
+            // 국가별 전체 카운트 업데이트
+            val countryTotalRef = db.collection("product_stats")
+                .document("countries")
+                .collection(country)
+                .document("totalCount")
+            batch.set(countryTotalRef, hashMapOf("count" to FieldValue.increment(change.toLong())), com.google.firebase.firestore.SetOptions.merge())
+            
+            // 국가별 상품 카운트 업데이트
+            val countryProductRef = db.collection("product_stats")
+                .document("countries")
+                .collection(country)
+                .document("products")
+                .collection(productId)
+                .document("count")
+            batch.set(countryProductRef, hashMapOf("count" to FieldValue.increment(change.toLong())), com.google.firebase.firestore.SetOptions.merge())
+            
+            // 장소별 상품 카운트 업데이트
+            placeIds.forEach { placeId ->
+                val placeProductRef = db.collection("product_stats")
+                    .document("places")
+                    .collection(placeId)
+                    .document("products")
+                    .collection(productId)
+                    .document("count")
+                batch.set(placeProductRef, hashMapOf("count" to FieldValue.increment(change.toLong())), com.google.firebase.firestore.SetOptions.merge())
+            }
+            
+            batch.commit().await()
+            
+            // 감소하는 경우, count가 0이 된 문서를 삭제
+            if (!increment) {
+                // 국가별 상품 카운트 확인 및 삭제
+                // products/{productId}/count가 0이 되면 {productId} 컬렉션 전체 삭제
+                val countryProductDoc = countryProductRef.get().await()
+                if (countryProductDoc.exists()) {
+                    val productCount = (countryProductDoc.getLong("count") ?: 0).toInt()
+                    if (productCount <= 0) {
+                        // {productId} 컬렉션의 모든 문서 삭제
+                        countryProductDoc.reference.delete().await()
+                    }
+                }
+                
+                // 국가별 전체 카운트 확인 및 삭제
+                // totalCount가 0이 되면 {country} 컬렉션 전체 삭제
+                val countryTotalDoc = countryTotalRef.get().await()
+                if (countryTotalDoc.exists()) {
+                    val totalCount = (countryTotalDoc.getLong("count") ?: 0).toInt()
+                    if (totalCount <= 0) {
+                        // {country} 컬렉션의 totalCount 문서가 삭제됐고
+                        // {country} 컬렉션의 products 문서 내부에 아무것도 존재하지 않는다면
+                        // {country} 컬렉션도 자동으로 사라짐
+                        countryTotalDoc.reference.delete().await()
+                    }
+                }
+                
+                // 각 장소별 상품 카운트 확인 및 삭제
+                placeIds.forEach { placeId ->
+                    val placeProductRef = db.collection("product_stats")
+                        .document("places")
+                        .collection(placeId)
+                        .document("products")
+                        .collection(productId)
+                        .document("count")
+                    val placeProductDoc = placeProductRef.get().await()
+                    if (placeProductDoc.exists()) {
+                        val placeCount = (placeProductDoc.getLong("count") ?: 0).toInt()
+                        if (placeCount <= 0) {
+                            // count 문서를 삭제하면 내부가 비어있는 {productId} 컬렉션이 삭제되며
+                            // 마찬가지로 {productId}가 하나도 없으면 products 문서 삭제,
+                            // 내부 요소가 없어졌으므로 {placeId} 컬렉션도 자동으로 사라지는 등 연쇄작용 발생
+                            placeProductDoc.reference.delete().await()
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // 랭킹 데이터 업데이트 실패
+            android.util.Log.e("ListViewModel", "Error updating product stats", e)
+        }
+    }
+    
+    // 장소별 상품 카운트만 업데이트 (국가 카운트는 제외)
+    private suspend fun updateProductStatsForPlace(
+        placeId: String,
+        productId: String,
+        increment: Boolean = true
+    ) {
+        if (productId.isEmpty()) return
+        
+        val change = if (increment) 1 else -1
+        
+        try {
+            val placeProductRef = db.collection("product_stats")
+                .document("places")
+                .collection(placeId)
+                .document("products")
+                .collection(productId)
+                .document("count")
+            placeProductRef.set(
+                hashMapOf("count" to FieldValue.increment(change.toLong())),
+                com.google.firebase.firestore.SetOptions.merge()
+            ).await()
+            
+            // 감소하는 경우, count가 0이 된 문서를 삭제
+            if (!increment) {
+                val placeProductDoc = placeProductRef.get().await()
+                if (placeProductDoc.exists()) {
+                    val placeCount = (placeProductDoc.getLong("count") ?: 0).toInt()
+                    if (placeCount <= 0) {
+                        placeProductDoc.reference.delete().await()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // 오류 발생
+        }
+    }
+    
     // 선택된 리스트들에 상품 추가
     suspend fun addProductToSelectedLists(productDetails: com.example.tripcart.ui.screen.ProductDetails): Result<Unit> {
         return try {
@@ -994,6 +1210,21 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                                     .document(listItem.listId)
                                     .update("productCount", currentProductCount + 1)
                                     .await()
+                                
+                                // productId가 있는 경우만 랭킹 데이터 업데이트
+                                productDetails.productId?.let { productId ->
+                                    val country = listDoc.getString("country")
+                                    val places = (listDoc.get("places") as? List<*>)?.mapNotNull { 
+                                        when (it) {
+                                            is Map<*, *> -> it["placeId"] as? String
+                                            else -> null
+                                        }
+                                    } ?: emptyList()
+                                    
+                                    if (country != null && places.isNotEmpty()) {
+                                        updateProductStats(country, places, productId, increment = true)
+                                    }
+                                }
                             }
                         }
                     } catch (e: Exception) {
@@ -1025,6 +1256,16 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                         if (list != null) {
                             val updatedList = list.copy(productCount = list.productCount + 1)
                             listDao.updateList(updatedList)
+                            
+                            // productId가 있는 경우만 랭킹 데이터 업데이트
+                            productDetails.productId?.let { productId ->
+                                val country = list.country
+                                val placeIds = list.places.map { it.placeId }
+                                
+                                if (country != null && placeIds.isNotEmpty()) {
+                                    updateProductStats(country, placeIds, productId, increment = true)
+                                }
+                            }
                         }
                     }
                 }

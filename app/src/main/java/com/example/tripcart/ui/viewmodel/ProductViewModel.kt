@@ -23,7 +23,18 @@ data class DraftProduct(
     val productMemo: String = "",
     val quantity: Int = 1,
     val selectedCategory: String? = null,
-    val isPublic: Boolean = false
+    val isPublic: Boolean = false,
+    val isFromFirestore: Boolean = false,
+    val firestoreProductId: String? = null,
+    val firestoreImageUrls: List<String> = emptyList()
+)
+
+// Firestore에서 검색된 상품 정보
+data class SearchedProduct(
+    val productId: String,
+    val productName: String,
+    val category: String,
+    val imageUrls: List<String>
 )
 
 data class ProductUiState(
@@ -33,7 +44,8 @@ data class ProductUiState(
     val saveSuccess: Boolean = false,
     val savedProduct: com.example.tripcart.ui.screen.ProductDetails? = null, // 저장된 상품 정보
     val draftProduct: DraftProduct = DraftProduct(), // 입력 중인 상품 데이터
-    val hasNavigatedToAddToList: Boolean = false // AddProductToListScreen으로 이동하는지 여부
+    val hasNavigatedToAddToList: Boolean = false, // AddProductToListScreen으로 이동하는지 여부
+    val searchResults: List<SearchedProduct> = emptyList() // 검색 결과
 )
 
 class ProductViewModel(application: Application) : AndroidViewModel(application) {
@@ -153,11 +165,11 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                     emptyList()
                 }
                 
-                // 상품 고유 ID 생성
+                // 상품 고유 ID 생성 (로컬용)
                 val productId = UUID.randomUUID().toString()
                 
                 // 공개 상품인 경우 products 컬렉션에 저장 (productName, category, imageUrls만)
-                // productId는 Firestore 문서 ID로 자동 생성됨
+                // Firestore는 자동 생성된 20자리 영숫자 ID를 사용
                 var firestoreProductId: String? = null
                 if (isPublic) {
                     val productData = hashMapOf(
@@ -165,10 +177,11 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                         "category" to category,
                         "imageUrls" to imageUrls
                     )
+                    // .add()를 사용하여 Firestore는 자동 생성된 20자리 영숫자 ID를 사용
                     val documentRef = db.collection("products")
                         .add(productData)
                         .await()
-                    firestoreProductId = documentRef.id // Firestore 문서 ID
+                    firestoreProductId = documentRef.id // 자동 생성된 20자리 영숫자 ID
                 }
                 
                 // 저장된 상품 정보 저장
@@ -233,5 +246,149 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
             copyImageToList(url, listId)
         }
     }
+    
+    // Firestore products 컬렉션에서 상품 검색
+    fun searchProducts(keyword: String) {
+        viewModelScope.launch {
+            if (keyword.isBlank()) {
+                _uiState.value = _uiState.value.copy(searchResults = emptyList())
+                return@launch
+            }
+            
+            try {
+                // productName 필드에서 키워드 검색
+                val query = db.collection("products")
+                    .whereGreaterThanOrEqualTo("productName", keyword)
+                    .whereLessThanOrEqualTo("productName", keyword + "\uf8ff") // \nf8ff가 뭘까 ..
+                    .limit(20) // 최대 20개 결과
+                
+                val snapshot = query.get().await()
+                val results = snapshot.documents.mapNotNull { doc ->
+                    val productName = doc.getString("productName") ?: return@mapNotNull null
+                    val category = doc.getString("category") ?: ""
+                    val imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                    
+                    SearchedProduct(
+                        productId = doc.id,
+                        productName = productName,
+                        category = category,
+                        imageUrls = imageUrls
+                    )
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    searchResults = results
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    searchResults = emptyList(),
+                    errorMessage = "상품 검색에 실패했습니다: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    // Firestore에서 상품 불러오기
+    fun loadProductFromFirestore(productId: String) {
+        viewModelScope.launch {
+            try {
+                val doc = db.collection("products")
+                    .document(productId)
+                    .get()
+                    .await()
+                
+                if (!doc.exists()) {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "상품을 찾을 수 없습니다."
+                    )
+                    return@launch
+                }
+                
+                val productName = doc.getString("productName") ?: ""
+                val category = doc.getString("category") ?: ""
+                val imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                
+                // DraftProduct 업데이트
+                val currentDraft = _uiState.value.draftProduct
+                val updatedDraft = currentDraft.copy(
+                    productName = productName,
+                    selectedCategory = category,
+                    isFromFirestore = true, // Firestore에서 불러온 상품이다!
+                    firestoreProductId = productId,
+                    firestoreImageUrls = imageUrls,
+                    isPublic = false // 불러온 상품은 공개 불가
+                )
+                
+                _uiState.value = _uiState.value.copy(draftProduct = updatedDraft)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "상품 불러오기에 실패했습니다: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    // 검색 결과 초기화
+    fun clearSearchResults() {
+        _uiState.value = _uiState.value.copy(searchResults = emptyList())
+    }
+    
+    // Firestore에서 불러온 상품 저장 (이미지는 새로 추가한 이미지만 업로드)
+    fun saveProductFromFirestore(
+        productName: String,
+        productMemo: String,
+        quantity: Int,
+        category: String,
+        existingImageUrls: List<String>,
+        newImageUris: List<Uri>,
+        firestoreProductId: String
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isSaving = true,
+                errorMessage = null,
+                saveSuccess = false,
+                hasNavigatedToAddToList = false
+            )
+            
+            try {
+                // 새로 추가한 이미지만 업로드
+                val newImageUrls = if (newImageUris.isNotEmpty()) {
+                    uploadImages(newImageUris, pathType = ImagePathType.USER)
+                } else {
+                    emptyList()
+                }
+                
+                // 기존 이미지 URL + 새로 업로드한 이미지 URL 합치기
+                val allImageUrls = existingImageUrls + newImageUrls
+                
+                // 상품 고유 ID 생성
+                val productId = UUID.randomUUID().toString()
+                
+                // 저장된 상품 정보 저장
+                val savedProduct = com.example.tripcart.ui.screen.ProductDetails(
+                    id = productId,
+                    productName = productName,
+                    category = category,
+                    imageUrls = allImageUrls,
+                    quantity = quantity,
+                    note = productMemo.ifBlank { null },
+                    productId = firestoreProductId
+                )
+                
+                _uiState.value = _uiState.value.copy(
+                    isSaving = false,
+                    saveSuccess = true,
+                    savedProduct = savedProduct
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isSaving = false,
+                    errorMessage = "상품 저장에 실패했습니다: ${e.message}"
+                )
+            }
+        }
+    }
 }
+
 

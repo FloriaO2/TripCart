@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshotFlow
@@ -37,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.example.tripcart.R
@@ -45,6 +48,8 @@ import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.theme.SecondaryBackground
 import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.ProductViewModel
+import kotlinx.coroutines.delay
+import java.util.UUID
 
 // 상품 카테고리 목록
 val PRODUCT_CATEGORIES = listOf(
@@ -80,33 +85,89 @@ fun AddProductScreen(
     var selectedCategory by remember { mutableStateOf(draftProduct.selectedCategory) }
     var isPublic by remember { mutableStateOf(draftProduct.isPublic) }
     var showCategoryDialog by remember { mutableStateOf(false) }
+    var isFromFirestore by remember { mutableStateOf(draftProduct.isFromFirestore) }
+    var firestoreImageUrls by remember { mutableStateOf(draftProduct.firestoreImageUrls) }
+    var firestoreProductId by remember { mutableStateOf(draftProduct.firestoreProductId) }
     
-    // draftProduct가 변경되면 입력 필드 업데이트 (뒤로가기 시 복원)
+    // 검색 관련 상태
+    var searchQuery by remember { mutableStateOf("") }
+    var showSearchResults by remember { mutableStateOf(false) }
+    
+    // draftProduct가 변경되면 입력 필드 업데이트
+    // saveDraftProduct를 이용해
+    // AddProductToListScreen에서 AddProductScreen으로 이동할 때 상품 정보 유지
+    // - saveDraftProduct의 기본값 설정때문에 isFromFirestore가 false로 리셋되는 문제가 발생했는데
+    //   saveDraftProduct에서 새롭게 추가한 필드들도 저장하게끔 변경함으로써 해결
     LaunchedEffect(draftProduct) {
-        if (productImages != draftProduct.productImages ||
-            productName != draftProduct.productName ||
-            productMemo != draftProduct.productMemo ||
-            quantity != draftProduct.quantity ||
-            selectedCategory != draftProduct.selectedCategory ||
-            isPublic != draftProduct.isPublic) {
-            productImages = draftProduct.productImages
-            productName = draftProduct.productName
-            productMemo = draftProduct.productMemo
-            quantity = draftProduct.quantity
-            selectedCategory = draftProduct.selectedCategory
-            isPublic = draftProduct.isPublic
+        // 상품을 firestore에서 불러오는 경우
+        if (draftProduct.isFromFirestore) {
+            if (isFromFirestore != true ||
+                productName != draftProduct.productName ||
+                selectedCategory != draftProduct.selectedCategory ||
+                firestoreImageUrls != draftProduct.firestoreImageUrls ||
+                firestoreProductId != draftProduct.firestoreProductId) {
+                // 실제로 불러오기
+                productName = draftProduct.productName
+                selectedCategory = draftProduct.selectedCategory
+                isFromFirestore = true
+                firestoreImageUrls = draftProduct.firestoreImageUrls
+                firestoreProductId = draftProduct.firestoreProductId
+                isPublic = false // 불러온 상품은 공개 불가
+                // 불러온 이미지 URL들을 productImages에 추가하지 않고 기존 url 재탕
+            }
+        } else {
+            // 직접 입력하는 경우
+            if (productImages != draftProduct.productImages ||
+                productName != draftProduct.productName ||
+                productMemo != draftProduct.productMemo ||
+                quantity != draftProduct.quantity ||
+                selectedCategory != draftProduct.selectedCategory ||
+                isPublic != draftProduct.isPublic) {
+                productImages = draftProduct.productImages
+                productName = draftProduct.productName
+                productMemo = draftProduct.productMemo
+                quantity = draftProduct.quantity
+                selectedCategory = draftProduct.selectedCategory
+                isPublic = draftProduct.isPublic
+                isFromFirestore = false // 직접 입력하는 경우 false로 설정
+            }
+        }
+    }
+    
+    // 상품 이름을 통해 검색 실행
+    LaunchedEffect(searchQuery) {
+        // 불러온 상품이면 검색 결과 팝업이 뜨지 않도록 !isFromFirestore 조건 추가
+        if (searchQuery.isNotBlank() && !isFromFirestore) { // 한 글자도 검색 가능
+            delay(300)
+            viewModel.searchProducts(searchQuery)
+            showSearchResults = true
+        } else {
+            viewModel.clearSearchResults()
+            showSearchResults = false
+        }
+    }
+    
+    LaunchedEffect(productName) {
+        // 불러온 상품이 아닐 경우 상품 이름 변경 시 검색어도 함께 업데이트
+        if (!isFromFirestore && searchQuery != productName) {
+            searchQuery = productName
         }
     }
     
     // ViewModel에 입력 값 저장
-    LaunchedEffect(productImages, productName, productMemo, quantity, selectedCategory, isPublic) {
+    // isFromFirestore 리셋 문제를 해결하기 위해
+    // isFromFirestore, firestoreImageUrls, firestoreProductId 필드도 저장할 수 있게 수정
+    LaunchedEffect(productImages, productName, productMemo, quantity, selectedCategory, isPublic, isFromFirestore, firestoreImageUrls, firestoreProductId) {
         val currentDraft = com.example.tripcart.ui.viewmodel.DraftProduct(
             productImages = productImages,
             productName = productName,
             productMemo = productMemo,
             quantity = quantity,
             selectedCategory = selectedCategory,
-            isPublic = isPublic
+            isPublic = isPublic,
+            isFromFirestore = isFromFirestore,
+            firestoreProductId = firestoreProductId,
+            firestoreImageUrls = firestoreImageUrls
         )
         
         // 현재 draftProduct와 입력 값이 다를 때만 ViewModel에 저장 - 무한 루프 방지!
@@ -116,7 +177,8 @@ fun AddProductScreen(
     }
     
     // 공개 여부 활성화 조건 체크
-    val canSetPublic = productImages.isNotEmpty() && 
+    val canSetPublic = !isFromFirestore &&            // 불러온 상품은 공개 불가
+                       productImages.isNotEmpty() && 
                        productName.isNotBlank() && 
                        selectedCategory != null
     
@@ -179,6 +241,24 @@ fun AddProductScreen(
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // Firestore에서 불러온 이미지들
+                        items(firestoreImageUrls) { imageUrl ->
+                            Box(
+                                modifier = Modifier
+                                    .size(100.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.Gray.copy(alpha = 0.2f))
+                            ) {
+                                AsyncImage(
+                                    model = imageUrl,
+                                    contentDescription = "상품 사진",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                                // 삭제 불가 - X 버튼 없음
+                            }
+                        }
+                        // 사용자가 추가한 이미지들
                         items(productImages) { uri ->
                             Box(
                                 modifier = Modifier
@@ -219,6 +299,7 @@ fun AddProductScreen(
                                 }
                             }
                         }
+                        // 사진 추가 버튼
                         item {
                             Box(
                                 modifier = Modifier
@@ -247,24 +328,119 @@ fun AddProductScreen(
                 // 상품 이름 (필수)
                 Column {
                     Text(
-                        text = "상품 이름 *",
+                        text = if (isFromFirestore) "상품 이름 (변경 불가)" else "상품 이름 *",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     OutlinedTextField(
                         value = productName,
-                        onValueChange = { productName = it },
+                        onValueChange = { 
+                            if (!isFromFirestore) {
+                                productName = it
+                                searchQuery = it    // 검색어도 함께 업데이트
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("상품 이름을 입력하세요") },
-                        singleLine = true
+                        singleLine = true,
+                        enabled = !isFromFirestore,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Color.Black,
+                            disabledBorderColor = Color.Gray,
+                            disabledPlaceholderColor = Color.Gray
+                        )
                     )
+                    
+                    // 검색 결과 표시
+                    if (showSearchResults && !isFromFirestore) {
+                        // 결과가 존재할 때만 표시
+                        if (uiState.searchResults.isNotEmpty()) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                                    .heightIn(max = 300.dp), // 테스트용
+                                                             // 추후 DB 쌓이면 높이 제한 없애야 할 수도 있음
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color.White
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            ) {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    items(uiState.searchResults) { searchedProduct ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    // 상품 선택 시 불러오기
+                                                    viewModel.loadProductFromFirestore(searchedProduct.productId)
+                                                    searchQuery = ""
+                                                    showSearchResults = false
+                                                }
+                                                .padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            // 상품 사진
+                                            if (searchedProduct.imageUrls.isNotEmpty()) {
+                                                AsyncImage(
+                                                    model = searchedProduct.imageUrls.first(),
+                                                    contentDescription = "상품 사진",
+                                                    modifier = Modifier
+                                                        .size(60.dp)
+                                                        .clip(RoundedCornerShape(8.dp)),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(60.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(Color.Gray.copy(alpha = 0.2f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = "이미지 없음",
+                                                        fontSize = 10.sp,
+                                                        color = Color.Gray
+                                                    )
+                                                }
+                                            }
+                                            
+                                            // 상품 이름과 카테고리
+                                            Column(
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text(
+                                                    text = searchedProduct.productName,
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    lineHeight = 16.sp
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = searchedProduct.category,
+                                                    fontSize = 14.sp,
+                                                    color = Color.Gray,
+                                                    lineHeight = 14.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 
                 // 상품 품목 (필수)
                 Column {
                     Text(
-                        text = "상품 품목 *",
+                        text = if (isFromFirestore) "상품 품목 (변경 불가)" else "상품 품목 *",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -274,7 +450,11 @@ fun AddProductScreen(
                         onValueChange = { },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { showCategoryDialog = true },
+                            .clickable { 
+                                if (!isFromFirestore) {
+                                    showCategoryDialog = true 
+                                }
+                            },
                         placeholder = { Text("카테고리") },
                         enabled = false,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -283,12 +463,14 @@ fun AddProductScreen(
                             disabledPlaceholderColor = Color.Gray
                         ),
                         trailingIcon = {
-                            IconButton(
-                                onClick = { showCategoryDialog = true }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowDown,
-                                    contentDescription = "카테고리 선택" )
+                            if (!isFromFirestore) {
+                                IconButton(
+                                    onClick = { showCategoryDialog = true }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = "카테고리 선택" )
+                                }
                             }
                         }
                     )
@@ -360,6 +542,13 @@ fun AddProductScreen(
                             .padding(12.dp)
                     ) {
                         when {
+                            isFromFirestore -> {
+                                Text(
+                                    text = "이미 불러온 상품은 서버에 재업로드할 수 없습니다.",
+                                    fontSize = 14.sp,
+                                    color = PrimaryAccent
+                                )
+                            }
                             !canSetPublic -> {
                                 val annotatedText = buildAnnotatedString {
                                     withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
@@ -528,14 +717,31 @@ fun AddProductScreen(
                         return@Button
                     }
                     
-                    viewModel.saveProduct(
-                        productName = productName,
-                        productMemo = productMemo,
-                        quantity = quantity,
-                        category = selectedCategory!!,
-                        imageUris = productImages,
-                        isPublic = isPublic
-                    )
+                    // 불러온 상품인 경우 특별 처리
+                    if (isFromFirestore) {
+                        firestoreProductId?.let { productId ->
+                            // 불러온 사진과 사용자가 추가한 사진 분리 및 productId 업데이트 등의 이유로
+                            // 불러온 상품은 별도 함수로 처리
+                            viewModel.saveProductFromFirestore(
+                                productName = productName,
+                                productMemo = productMemo,
+                                quantity = quantity,
+                                category = selectedCategory!!,
+                                existingImageUrls = firestoreImageUrls,
+                                newImageUris = productImages,
+                                firestoreProductId = productId
+                            )
+                        }
+                    } else {
+                        viewModel.saveProduct(
+                            productName = productName,
+                            productMemo = productMemo,
+                            quantity = quantity,
+                            category = selectedCategory!!,
+                            imageUris = productImages,
+                            isPublic = isPublic
+                        )
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
