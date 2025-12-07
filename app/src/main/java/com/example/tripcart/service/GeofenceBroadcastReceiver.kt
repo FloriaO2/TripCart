@@ -84,7 +84,25 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             // - 그래서 getActivity 사용
 
             // MainActivity로 이동하는 Intent
-            val intent = Intent(context, MainActivity::class.java)
+            // MapScreen으로 이동하도록 extra 추가
+            val intent = Intent(context, MainActivity::class.java).apply {
+
+                // ※ 완전히 앱을 종료한 상태일 때
+                // FLAG_ACTIVITY_NEW_TASK: 새 Task 생성 후 그 안에 새 Activity 생성
+
+                // ※ 포그라운드에서 앱을 이미 실행 중일 때
+                // FLAG_ACTIVITY_SINGLE_TOP: 스택 맨 위에 Activity가 있으면
+                //                           굳이 새 Activity 생성하지 말고 바로 onNewIntent 호출
+                //                           (onNewIntent - 기존 Intent 불러와서 그대로 사용)
+
+                // ※ 백그라운드에서 앱을 이미 실행 중일 때
+                // FLAG_ACTIVITY_CLEAR_TOP: 앱 Activity보다 위에 있는 스택들을 삭제해서
+                //                          앱 Activity가 스택 맨 위에 존재하도록!
+                //                          즉, 기존 Activity를 재사용
+
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("navigate_to_map", true) // Intent에 navigate_to_map라는 키의 값을 true로 설정
+            }
             val pendingIntent = PendingIntent.getActivity(
                 context,
                 0, // 요청 코드 (PendingIntent 구분용)

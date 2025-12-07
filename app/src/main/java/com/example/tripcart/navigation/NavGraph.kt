@@ -58,7 +58,9 @@ fun TripCartNavGraph(
     startDestination: String = Screen.Login.route,
     listViewModel: ListViewModel? = null, // 외부에서 전달받거나 내부에서 생성
     onRequestNotificationPermission: () -> Unit = {}, // 알림 권한 요청 콜백
-    onRequestBackgroundLocationPermission: () -> Unit = {} // 백그라운드 위치 권한 요청 콜백
+    onRequestBackgroundLocationPermission: () -> Unit = {}, // 백그라운드 위치 권한 요청 콜백
+    shouldNavigateToMap: Boolean = false, // MapScreen으로 이동해야 하는지 여부
+    onNavigateToMapComplete: () -> Unit = {} // MapScreen으로 이동 완료 후 호출되는 콜백
 ) {
     val auth = FirebaseAuth.getInstance()
     
@@ -76,6 +78,19 @@ fun TripCartNavGraph(
         Screen.Home.route
     } else {
         Screen.Login.route
+    }
+    
+    // MapScreen으로 이동해야 하는 경우
+    LaunchedEffect(shouldNavigateToMap) {
+        if (shouldNavigateToMap && auth.currentUser != null) {
+            // 로그인된 상태에서만 MapScreen으로 이동
+            navController.navigate(Screen.Map.route) {
+                // 백 스택을 모두 제거해서 MapScreen을 루트로 설정
+                popUpTo(0) { inclusive = true }
+            }
+            // 이동 완료 후 콜백을 호출해 shouldNavigateToMapState 값을 false로 리셋
+            onNavigateToMapComplete()
+        }
     }
     
     NavHost(

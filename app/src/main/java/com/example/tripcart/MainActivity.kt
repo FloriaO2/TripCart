@@ -2,6 +2,7 @@ package com.example.tripcart
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
@@ -12,6 +13,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
@@ -25,6 +30,9 @@ import com.example.tripcart.util.NotificationPermissionHelper
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
+    
+    // 푸시 알림으로부터 MapScreen으로 이동해야 하는지 여부를 추적
+    private val shouldNavigateToMapState = mutableStateOf(false)
     
     // 알림 권한 요청 런처 (Android 13 이상)
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -88,7 +96,14 @@ class MainActivity : ComponentActivity() {
         windowInsetsController.systemBarsBehavior = 
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         
-        setContent {
+        // Intent에서 MapScreen으로 이동해야 하는지 확인
+        shouldNavigateToMapState.value = intent.getBooleanExtra("navigate_to_map", false)
+        
+        setContent { // UI 조작
+            // shouldNavigateToMapState 상태가 변경되면 재렌더링
+            // shouldNavigateToMapState 자체가 mutableStateOf라 remember 불필요!
+            val shouldNavigateToMap by shouldNavigateToMapState
+            
             TripCartTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -120,6 +135,12 @@ class MainActivity : ComponentActivity() {
                                     backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                                 }
                             }
+                        },
+                        // 푸시 알림으로부터 MapScreen으로 이동해야 하는지 전달
+                        shouldNavigateToMap = shouldNavigateToMap,
+                        // MapScreen으로의 이동이 완료되면 shouldNavigateToMapState를 false로 리셋
+                        onNavigateToMapComplete = {
+                            shouldNavigateToMapState.value = false
                         }
                     )
                 }
@@ -151,6 +172,15 @@ class MainActivity : ComponentActivity() {
         
         // 앱 시작 시 Geofence 등록 (위치 권한이 있으면)
         LocationTrackingService.startService(this)
+    }
+    
+    // 백그라운드에서 앱이 실행 중일 때 푸시 알림 클릭 시 호출됨
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // 이미 Intent가 존재하는 상황이므로 굳이 새 Intent 만들지 말고 기존 Intent 사용
+        setIntent(intent)
+        // Intent에 navigate_to_map이 존재하면 shouldNavigateToMapState가 true, 없으면 false
+        shouldNavigateToMapState.value = intent.getBooleanExtra("navigate_to_map", false)
     }
     
     // 위치 권한 요청 함수
