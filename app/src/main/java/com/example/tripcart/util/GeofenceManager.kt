@@ -24,15 +24,23 @@ object GeofenceManager {
         return LocationServices.getGeofencingClient(context)
     }
     
+    // 밑 addGeofence에서
+    // geofencingClient.addGeofences(geofencingRequest, getGeofencePendingIntent(context))
+    // 이러한 형태로 사용하며, (단순 호출이 아니고 데이터를 추가하는 형태)
+    // 설정한 각 장소의 GeofencingEvent 데이터를 담아야 함
+    // = 시스템 서비스가 Intent 내용을 동적으로 변경해야 함
+    // = FLAG_MUTABLE 사용해야 함!
+    // <-> FLAG_IMMUTABLE - 시스템 서비스가 Intent를 수정할 수 없어 작동하지 않음
+
+    // 단순 화면 열기가 아니라 BroadcastReceiver 호출해서 시스템 이벤트를 처리해야 함
+    // - 그래서 getBroadcast 사용
+
     private fun getGeofencePendingIntent(context: Context): PendingIntent {
         val intent = Intent(context, GeofenceBroadcastReceiver::class.java)
         return PendingIntent.getBroadcast(
             context,
             0,
             intent,
-            // 푸시 알림 메시지와 연관이 깊은 함수 ..
-            // FLAG_IMMUTABLE면 푸시 알림 메시지 동적 변경이 불가해서 MUTABLE 사용해야 함
-            // 이거 바꾸면 바로 알림 안 됨 ..
             PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
     }

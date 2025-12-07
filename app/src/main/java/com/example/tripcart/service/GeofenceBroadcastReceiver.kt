@@ -48,7 +48,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     companion object {
         private const val CHANNEL_ID = "geofence_notification_channel"
         
-        // 알림 표시 함수 (외부에서도 호출 가능)
+        // 알림 표시 함수
         fun showNotification(context: Context, placeName: String) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             
@@ -73,14 +73,22 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 notificationManager.createNotificationChannel(channel)
             }
             
+            // 위 onReceive에서 알림을 표시할 때
+            // GeofenceBroadcastReceiver.showNotification(context, placeName)
+            // 이러한 형태로 사용됨 (단순 호출)
+            // = 시스템 서비스가 Intent 내용을 동적으로 변경할 필요가 없음
+            // = FLAG_IMMUTABLE 사용해도 됨!
+            // <-> FLAG_MUTABLE - 보안상의 문제때문에 기피
+
+            // 단순히 알림 클릭 시 앱 화면만 열면 됨 (Activity를 열면 됨)
+            // - 그래서 getActivity 사용
+
             // MainActivity로 이동하는 Intent
             val intent = Intent(context, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(
                 context,
                 0, // 요청 코드 (PendingIntent 구분용)
                 intent,
-                // FLAG_IMMUTABLE: PendingIntent 내용 변경 불가
-                // FLAG_IMMUTABLE는 일반 알림 구현에서 사용 <-> FLAG_MUTABLE
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             
