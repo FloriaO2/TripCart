@@ -28,12 +28,15 @@ import com.example.tripcart.ui.screen.MyPageScreen
 import com.example.tripcart.ui.screen.AddPlaceScreen
 import com.example.tripcart.ui.screen.AddPlaceToListScreen
 import com.example.tripcart.ui.screen.AddProductToListScreen
+import com.example.tripcart.ui.screen.RankingScreen
+import com.example.tripcart.ui.screen.RankingDetailScreen
 import com.example.tripcart.ui.viewmodel.ProductViewModel
 import com.google.firebase.auth.FirebaseAuth
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tripcart.ui.viewmodel.PlaceViewModel
 import com.example.tripcart.ui.viewmodel.PlaceDetails
 import com.example.tripcart.ui.viewmodel.ListViewModel
+import com.example.tripcart.ui.viewmodel.RankingViewModel
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -44,6 +47,13 @@ sealed class Screen(val route: String) {
         fun createRoute(listId: String) = "list_detail/$listId"
     }
     object Map : Screen("map")
+    object Ranking : Screen("ranking")
+    object RankingDetail : Screen("ranking_detail") {
+        fun createRoute(country: String? = null) = if (country != null) "ranking_detail/$country" else "ranking_detail"
+    }
+    object RankingDetailWithCountry : Screen("ranking_detail/{country}") {
+        fun createRoute(country: String) = "ranking_detail/$country"
+    }
     object MyPage : Screen("my_page")
     object AddPlace : Screen("add_place")
     object AddProduct : Screen("add_product")
@@ -72,6 +82,9 @@ fun TripCartNavGraph(
     
     // ProductViewModel도 NavGraph 레벨에서 생성하여 공유
     val sharedProductViewModel: ProductViewModel = viewModel()
+    
+    // RankingViewModel도 NavGraph 레벨에서 생성하여 공유
+    val sharedRankingViewModel: RankingViewModel = viewModel()
     
     // 로그인 상태 확인을 거쳐 시작 화면 결정
     val initialRoute = if (auth.currentUser != null) {
@@ -128,6 +141,9 @@ fun TripCartNavGraph(
                         Screen.Map.route -> {
                             navController.navigate(Screen.Map.route)
                         }
+                        Screen.Ranking.route -> {
+                            navController.navigate(Screen.Ranking.route)
+                        }
                         Screen.MyPage.route -> {
                             navController.navigate(Screen.MyPage.route)
                         }
@@ -156,6 +172,11 @@ fun TripCartNavGraph(
                         }
                         Screen.Map.route -> {
                             navController.navigate(Screen.Map.route) {
+                                popUpTo(Screen.List.route) { inclusive = false }
+                            }
+                        }
+                        Screen.Ranking.route -> {
+                            navController.navigate(Screen.Ranking.route) {
                                 popUpTo(Screen.List.route) { inclusive = false }
                             }
                         }
@@ -340,6 +361,11 @@ fun TripCartNavGraph(
                         Screen.Map.route -> {
                             // 이미 Map 화면이면 이동하지 않음
                         }
+                        Screen.Ranking.route -> {
+                            navController.navigate(Screen.Ranking.route) {
+                                popUpTo(Screen.Map.route) { inclusive = false }
+                            }
+                        }
                         Screen.MyPage.route -> {
                             navController.navigate(Screen.MyPage.route) {
                                 popUpTo(Screen.Map.route) { inclusive = false }
@@ -357,6 +383,80 @@ fun TripCartNavGraph(
                     navController.navigate(Screen.ListDetail.createRoute(listId))
                 },
                 listViewModel = sharedListViewModel
+            )
+        }
+        
+        composable(Screen.Ranking.route) {
+            RankingScreen(
+                onNavigateToRoute = { route ->
+                    when (route) {
+                        Screen.Home.route, "active_list" -> {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Ranking.route) { inclusive = false }
+                            }
+                        }
+                        Screen.List.route -> {
+                            navController.navigate(Screen.List.route) {
+                                popUpTo(Screen.Ranking.route) { inclusive = false }
+                            }
+                        }
+                        Screen.Map.route -> {
+                            navController.navigate(Screen.Map.route) {
+                                popUpTo(Screen.Ranking.route) { inclusive = false }
+                            }
+                        }
+                        Screen.Ranking.route -> {
+                            // 이미 Ranking 화면이면 이동하지 않음
+                        }
+                        Screen.MyPage.route -> {
+                            navController.navigate(Screen.MyPage.route) {
+                                popUpTo(Screen.Ranking.route) { inclusive = false }
+                            }
+                        }
+                        // TODO: 다른 라우트들도 추가
+                    }
+                },
+                onNavigateToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Ranking.route) { inclusive = false }
+                    }
+                },
+                onNavigateToDetail = {
+                    navController.navigate(Screen.RankingDetail.route)
+                },
+                // TOP3 국가 - 전체 상품 보기 텍스트 버튼을 통해 이동하는 페이지
+                onNavigateToCountryDetail = { country ->
+                    navController.navigate(Screen.RankingDetailWithCountry.createRoute(country))
+                },
+                viewModel = sharedRankingViewModel
+            )
+        }
+        
+        composable(Screen.RankingDetail.route) {
+            RankingDetailScreen(
+                selectedCountry = null,
+                onBack = {
+                    navController.popBackStack()
+                },
+                rankingViewModel = sharedRankingViewModel,
+                placeViewModel = sharedPlaceViewModel
+            )
+        }
+        
+        composable(
+            route = Screen.RankingDetailWithCountry.route,
+            arguments = listOf(
+                navArgument("country") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val country = backStackEntry.arguments?.getString("country")
+            RankingDetailScreen(
+                selectedCountry = country,
+                onBack = {
+                    navController.popBackStack()
+                },
+                rankingViewModel = sharedRankingViewModel,
+                placeViewModel = sharedPlaceViewModel
             )
         }
         
@@ -386,6 +486,11 @@ fun TripCartNavGraph(
                         }
                         Screen.Map.route -> {
                             navController.navigate(Screen.Map.route) {
+                                popUpTo(Screen.MyPage.route) { inclusive = false }
+                            }
+                        }
+                        Screen.Ranking.route -> {
+                            navController.navigate(Screen.Ranking.route) {
                                 popUpTo(Screen.MyPage.route) { inclusive = false }
                             }
                         }

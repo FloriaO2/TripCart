@@ -141,7 +141,7 @@ fun MapScreen(
 
 
     // Google Play 위치 서비스 클라이언트 - 실제 위치 정보 가져옴
-    // remember 이용해서 처음에 한번 만들어놓고 재탕 (처음부터 값이 정해져있음)
+    // remember 이용해서 처음에 한 번 만들어놓고 재탕 (처음부터 값이 정해져있음)
     val fusedLocationClient = remember {
         LocationServices.getFusedLocationProviderClient(context)
     }

@@ -1,0 +1,21 @@
+{
+  "name": "functions",
+  "description": "랭킹 데이터 동기화에 사용하는 Cloud Functions",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^4.5.0"
+  },
+  "private": true
+}
+
