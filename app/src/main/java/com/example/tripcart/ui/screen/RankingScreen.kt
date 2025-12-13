@@ -44,6 +44,7 @@ fun RankingScreen(
     onNavigateToDetail: () -> Unit = {},
     onNavigateToCountryDetail: (String) -> Unit = {}, // TOP3 국가 - 전체 상품 보기 텍스트 버튼을 통해
                                                       // 이동하는 페이지
+    onNavigateToAllProducts: () -> Unit = {}, // 전체 상품 모아보기 버튼을 통해 이동하는 페이지
     viewModel: RankingViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -114,14 +115,12 @@ fun RankingScreen(
                     }
                 }
                 
-                // 상품별 리뷰 모아보기 버튼 (녹색 배경 + 흰색 글씨)
+                // 전체 상품 모아보기 버튼 (녹색 배경 + 흰색 글씨)
                 val reviewInteractionSource = remember { MutableInteractionSource() }
                 val isReviewPressed = reviewInteractionSource.collectIsPressedAsState().value
                 
                 Button(
-                    onClick = {
-                        // TODO: 상품별 모아보기 기능
-                    },
+                    onClick = onNavigateToAllProducts,
                     modifier = Modifier
                         .weight(1f)
                         .height(90.dp),
@@ -135,7 +134,7 @@ fun RankingScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "전체 상품 랭킹",
+                            text = "전체 상품",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,

@@ -30,6 +30,7 @@ import com.example.tripcart.ui.screen.AddPlaceToListScreen
 import com.example.tripcart.ui.screen.AddProductToListScreen
 import com.example.tripcart.ui.screen.RankingScreen
 import com.example.tripcart.ui.screen.RankingDetailScreen
+import com.example.tripcart.ui.screen.AllProductsScreen
 import com.example.tripcart.ui.viewmodel.ProductViewModel
 import com.google.firebase.auth.FirebaseAuth
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -59,6 +60,7 @@ sealed class Screen(val route: String) {
     object AddProduct : Screen("add_product")
     object AddPlaceToList : Screen("add_place_to_list")
     object AddProductToList : Screen("add_product_to_list")
+    object AllProducts : Screen("all_products")
 }
 
 @Composable
@@ -431,6 +433,10 @@ fun TripCartNavGraph(
                 onNavigateToCountryDetail = { country ->
                     navController.navigate(Screen.RankingDetailWithCountry.createRoute(country))
                 },
+                // 전체 상품 모아보기 버튼을 통해 이동하는 페이지
+                onNavigateToAllProducts = {
+                    navController.navigate(Screen.AllProducts.route)
+                },
                 viewModel = sharedRankingViewModel
             )
         }
@@ -460,6 +466,15 @@ fun TripCartNavGraph(
                 },
                 rankingViewModel = sharedRankingViewModel,
                 placeViewModel = sharedPlaceViewModel
+            )
+        }
+        
+        composable(Screen.AllProducts.route) {
+            AllProductsScreen(
+                onBack = {
+                    navController.popBackStack()
+                },
+                viewModel = sharedProductViewModel
             )
         }
         

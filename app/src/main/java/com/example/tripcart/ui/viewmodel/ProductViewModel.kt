@@ -45,7 +45,8 @@ data class ProductUiState(
     val savedProduct: com.example.tripcart.ui.screen.ProductDetails? = null, // 저장된 상품 정보
     val draftProduct: DraftProduct = DraftProduct(), // 입력 중인 상품 데이터
     val hasNavigatedToAddToList: Boolean = false, // AddProductToListScreen으로 이동하는지 여부
-    val searchResults: List<SearchedProduct> = emptyList() // 검색 결과
+    val searchResults: List<SearchedProduct> = emptyList(), // 검색 결과
+    val allProducts: List<SearchedProduct> = emptyList() // 전체 상품 목록
 )
 
 class ProductViewModel(application: Application) : AndroidViewModel(application) {
@@ -406,6 +407,63 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                     errorMessage = "상품 저장에 실패했습니다: ${e.message}"
                 )
             }
+        }
+    }
+    
+    // Firestore products 컬렉션에서 모든 상품 불러오기
+    fun loadAllProducts() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            try {
+                val snapshot = db.collection("products").get().await()
+                val products = snapshot.documents.mapNotNull { doc ->
+                    val productName = doc.getString("productName") ?: return@mapNotNull null
+                    val category = doc.getString("category") ?: ""
+                    val imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                    
+                    SearchedProduct(
+                        productId = doc.id,
+                        productName = productName,
+                        category = category,
+                        imageUrls = imageUrls
+                    )
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    allProducts = products,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "상품 불러오기에 실패했습니다: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    // 필터링된 상품 목록 반환
+    fun getFilteredProducts(
+        searchKeyword: String?,
+        selectedCategories: List<String>
+    ): List<SearchedProduct> {
+        val allProducts = _uiState.value.allProducts
+        
+        return allProducts.filter { product ->
+            // 이름 검색 필터
+            // searchKeyword?.let - searchKeyword가 null이 아닐 때 검색 수행
+            val matchesSearch = searchKeyword?.let { keyword ->
+                product.productName.contains(keyword, ignoreCase = true) // 대소문자 무시
+            } ?: true // searchKeyword가 null이면 모든 상품 통과
+            
+            // 카테고리 필터
+            val matchesCategory = if (selectedCategories.isEmpty()) {
+                true // selectedCategories가 비어있으면 모든 상품 통과
+            } else {
+                selectedCategories.contains(product.category)
+            }
+            
+            matchesSearch && matchesCategory
         }
     }
 }
