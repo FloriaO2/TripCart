@@ -10,9 +10,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarHalf
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -35,6 +39,7 @@ import com.example.tripcart.ui.viewmodel.ProductViewModel
 @Composable
 fun AllProductsScreen(
     onBack: () -> Unit = {},
+    onNavigateToReview: (String) -> Unit = {},
     viewModel: ProductViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -45,7 +50,8 @@ fun AllProductsScreen(
     
     // 화면 진입 시 모든 상품 로드
     LaunchedEffect(Unit) {
-        viewModel.loadAllProducts()
+        // 처음 진입 시에만 로딩
+        viewModel.loadAllProducts(showLoading = uiState.allProducts.isEmpty())
     }
     
     // 필터링된 상품 목록
@@ -272,7 +278,10 @@ fun AllProductsScreen(
                         ) { product ->
                             ProductItem(
                                 product = product,
-                                modifier = Modifier.padding(horizontal = 16.dp)
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                onReviewClick = {
+                                    onNavigateToReview(product.productId)
+                                }
                             )
                         }
                     }
@@ -321,7 +330,8 @@ fun FilterTag(
 @Composable
 fun ProductItem(
     product: com.example.tripcart.ui.viewmodel.SearchedProduct,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onReviewClick: () -> Unit = {}
 ) {
     Card(
         modifier = modifier
@@ -336,8 +346,8 @@ fun ProductItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 상품 이미지
@@ -346,14 +356,14 @@ fun ProductItem(
                     model = product.imageUrls[0],
                     contentDescription = product.productName,
                     modifier = Modifier
-                        .size(100.dp)
+                        .size(80.dp)
                         .clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Box(
                     modifier = Modifier
-                        .size(100.dp)
+                        .size(80.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFFE0E0E0)),
                     contentAlignment = Alignment.Center
@@ -385,6 +395,74 @@ fun ProductItem(
                     text = product.category,
                     fontSize = 14.sp,
                     color = Color.Gray
+                )
+            }
+            
+            // 평균 별점 및 리뷰 버튼
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                // 평균 별점
+                val averageRating = if (product.reviewCount > 0) {
+                    product.totalScore / product.reviewCount
+                } else {
+                    0.0
+                }
+                
+                // 평균 별점 텍스트 및 별 표시
+                Column(
+                    horizontalAlignment = Alignment.End
+                ) {
+                    // 평균 별점 시각화
+                    val starColor = if (averageRating > 0) PrimaryBackground else Color.Gray
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        repeat(5) { index ->
+                            // 각 별이 끝나는 지점이 1.0, 2.0, 3.0, 4.0, 5.0
+                            val starValue = index + 1.0
+                            // 평균 별점이 0보다 크고,
+                            // 각 별이 시작하는 지점이 평균 별점보다 작으며,
+                            // 각 별이 끝나는 지점이 평균 별점보다 크면 반 별 처리
+                            val isHalfStar = averageRating > 0 && 
+                                           starValue - 1.0 < averageRating && 
+                                           averageRating < starValue
+                            
+                            val (icon, tint) = when {
+                                starValue <= averageRating -> Icons.Default.Star to starColor // 꽉 찬 별
+                                isHalfStar -> Icons.Default.StarHalf to starColor // 반 별
+                                else -> Icons.Default.Star to Color.Gray.copy(alpha = 0.3f) // 빈 별
+                            }
+                            
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = tint
+                            )
+                        }
+                    }
+ 
+                    // 평균 별점 텍스트 및 리뷰 개수
+                    Text(
+                        text = if (product.reviewCount > 0) {
+                            String.format("%.1f (%d)", averageRating, product.reviewCount)
+                        } else {
+                            "0.0 (0)"
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (averageRating > 0) PrimaryBackground else Color.Gray
+                    )
+                }
+                
+                // 전체 리뷰 보러가기 텍스트
+                Text(
+                    text = "전체 리뷰 보러가기",
+                    fontSize = 12.sp,
+                    color = PrimaryAccent,
+                    modifier = Modifier.clickable { onReviewClick() }
                 )
             }
         }

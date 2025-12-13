@@ -31,6 +31,8 @@ import com.example.tripcart.ui.screen.AddProductToListScreen
 import com.example.tripcart.ui.screen.RankingScreen
 import com.example.tripcart.ui.screen.RankingDetailScreen
 import com.example.tripcart.ui.screen.AllProductsScreen
+import com.example.tripcart.ui.screen.ProductReviewScreen
+import com.example.tripcart.ui.screen.WriteReviewScreen
 import com.example.tripcart.ui.viewmodel.ProductViewModel
 import com.google.firebase.auth.FirebaseAuth
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -61,6 +63,12 @@ sealed class Screen(val route: String) {
     object AddPlaceToList : Screen("add_place_to_list")
     object AddProductToList : Screen("add_product_to_list")
     object AllProducts : Screen("all_products")
+    object ProductReview : Screen("product_review/{productId}") {
+        fun createRoute(productId: String) = "product_review/$productId"
+    }
+    object WriteReview : Screen("write_review/{productId}") {
+        fun createRoute(productId: String) = "write_review/$productId"
+    }
 }
 
 @Composable
@@ -472,6 +480,51 @@ fun TripCartNavGraph(
         composable(Screen.AllProducts.route) {
             AllProductsScreen(
                 onBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToReview = { productId ->
+                    navController.navigate(Screen.ProductReview.createRoute(productId))
+                },
+                viewModel = sharedProductViewModel
+            )
+        }
+        
+        composable(
+            route = Screen.ProductReview.route,
+            arguments = listOf(
+                navArgument("productId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val productId = backStackEntry.arguments?.getString("productId") ?: ""
+            ProductReviewScreen(
+                productId = productId,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToWriteReview = {
+                    navController.navigate(Screen.WriteReview.createRoute(productId))
+                },
+                viewModel = sharedProductViewModel
+            )
+        }
+        
+        composable(
+            route = Screen.WriteReview.route,
+            arguments = listOf(
+                navArgument("productId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val productId = backStackEntry.arguments?.getString("productId") ?: ""
+            WriteReviewScreen(
+                productId = productId,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onReviewSaved = {
+                    // 리뷰 저장 후 전체 상품 목록 새로고침
+                    // - 전체 상품 목록 진입 시 새로고침하면 화면이 깜박이는 문제가 발생해,
+                    //   리뷰 저장 하자마자 바로 강제 새로고침 시킴으로써 깜박거리지 않도록 보완
+                    sharedProductViewModel.loadAllProducts(showLoading = false)
                     navController.popBackStack()
                 },
                 viewModel = sharedProductViewModel

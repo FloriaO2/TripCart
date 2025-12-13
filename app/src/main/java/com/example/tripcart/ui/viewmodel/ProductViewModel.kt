@@ -34,7 +34,21 @@ data class SearchedProduct(
     val productId: String,
     val productName: String,
     val category: String,
-    val imageUrls: List<String>
+    val imageUrls: List<String>,
+    val totalScore: Double = 0.0,
+    val reviewCount: Int = 0
+)
+
+// 리뷰 정보
+data class Review(
+    val reviewId: String,
+    val productId: String,
+    val userId: String,
+    val userName: String? = null,
+    val rating: Int, // 1-5 별점
+    val content: String? = null,
+    val imageUrls: List<String> = emptyList(),
+    val createdAt: com.google.firebase.Timestamp
 )
 
 data class ProductUiState(
@@ -46,7 +60,10 @@ data class ProductUiState(
     val draftProduct: DraftProduct = DraftProduct(), // 입력 중인 상품 데이터
     val hasNavigatedToAddToList: Boolean = false, // AddProductToListScreen으로 이동하는지 여부
     val searchResults: List<SearchedProduct> = emptyList(), // 검색 결과
-    val allProducts: List<SearchedProduct> = emptyList() // 전체 상품 목록
+    val allProducts: List<SearchedProduct> = emptyList(), // 전체 상품 목록
+    val currentProduct: SearchedProduct? = null, // 현재 선택된 상품 (리뷰 페이지용)
+    val reviews: List<Review> = emptyList(), // 리뷰 목록
+    val isLoadingReviews: Boolean = false // 리뷰 로딩 중
 )
 
 class ProductViewModel(application: Application) : AndroidViewModel(application) {
@@ -286,12 +303,16 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                     val productName = doc.getString("productName") ?: return@mapNotNull null
                     val category = doc.getString("category") ?: ""
                     val imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                    val totalScore = (doc.get("totalScore") as? Number)?.toDouble() ?: 0.0
+                    val reviewCount = (doc.get("reviewCount") as? Number)?.toInt() ?: 0
                     
                     SearchedProduct(
                         productId = doc.id,
                         productName = productName,
                         category = category,
-                        imageUrls = imageUrls
+                        imageUrls = imageUrls,
+                        totalScore = totalScore,
+                        reviewCount = reviewCount
                     )
                 }
                 
@@ -326,6 +347,8 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                 val productName = doc.getString("productName") ?: ""
                 val category = doc.getString("category") ?: ""
                 val imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                val totalScore = (doc.get("totalScore") as? Number)?.toDouble() ?: 0.0
+                val reviewCount = (doc.get("reviewCount") as? Number)?.toInt() ?: 0
                 
                 // DraftProduct 업데이트
                 val currentDraft = _uiState.value.draftProduct
@@ -411,22 +434,36 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     }
     
     // Firestore products 컬렉션에서 모든 상품 불러오기
-    fun loadAllProducts() {
+    fun loadAllProducts(showLoading: Boolean = true) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            // 이미 데이터가 있으면 로딩을 표시하지 않음 (깜빡임 방지)
+            if (showLoading || _uiState.value.allProducts.isEmpty()) {
+                _uiState.value = _uiState.value.copy(isLoading = true)
+            }
             try {
                 val snapshot = db.collection("products").get().await()
                 val products = snapshot.documents.mapNotNull { doc ->
                     val productName = doc.getString("productName") ?: return@mapNotNull null
                     val category = doc.getString("category") ?: ""
                     val imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                    val totalScore = (doc.get("totalScore") as? Number)?.toDouble() ?: 0.0
+                    val reviewCount = (doc.get("reviewCount") as? Number)?.toInt() ?: 0
                     
                     SearchedProduct(
                         productId = doc.id,
                         productName = productName,
                         category = category,
-                        imageUrls = imageUrls
+                        imageUrls = imageUrls,
+                        totalScore = totalScore,
+                        reviewCount = reviewCount
                     )
+                }.sortedByDescending { product ->
+                    // 평균 별점 높은 순으로 정렬
+                    if (product.reviewCount > 0) {
+                        product.totalScore / product.reviewCount
+                    } else {
+                        0.0
+                    }
                 }
                 
                 _uiState.value = _uiState.value.copy(
@@ -464,6 +501,176 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
             }
             
             matchesSearch && matchesCategory
+        }
+    }
+    
+    // 상품 정보 로드 (리뷰 페이지용)
+    fun loadProduct(productId: String) {
+        viewModelScope.launch {
+            try {
+                val doc = db.collection("products")
+                    .document(productId)
+                    .get()
+                    .await()
+                
+                if (!doc.exists()) {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "상품을 찾을 수 없습니다."
+                    )
+                    return@launch
+                }
+                
+                val productName = doc.getString("productName") ?: ""
+                val category = doc.getString("category") ?: ""
+                val imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                val totalScore = (doc.get("totalScore") as? Number)?.toDouble() ?: 0.0
+                val reviewCount = (doc.get("reviewCount") as? Number)?.toInt() ?: 0
+                
+                val product = SearchedProduct(
+                    productId = doc.id,
+                    productName = productName,
+                    category = category,
+                    imageUrls = imageUrls,
+                    totalScore = totalScore,
+                    reviewCount = reviewCount
+                )
+                
+                _uiState.value = _uiState.value.copy(currentProduct = product)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "상품 불러오기에 실패했습니다: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    // 리뷰 목록 로드
+    fun loadReviews(productId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingReviews = true)
+            try {
+                val snapshot = db.collection("products")
+                    .document(productId)
+                    .collection("reviews")
+                    .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .get()
+                    .await()
+                
+                val reviews = snapshot.documents.mapNotNull { doc ->
+                    val reviewId = doc.id
+                    val userId = doc.getString("userId") ?: return@mapNotNull null
+                    val userName = doc.getString("userName")
+                    val rating = (doc.get("rating") as? Number)?.toInt() ?: return@mapNotNull null
+                    val content = doc.getString("content")
+                    val imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                    val createdAt = doc.getTimestamp("createdAt") ?: return@mapNotNull null
+                    
+                    Review(
+                        reviewId = reviewId,
+                        productId = productId,
+                        userId = userId,
+                        userName = userName,
+                        rating = rating,
+                        content = content,
+                        imageUrls = imageUrls,
+                        createdAt = createdAt
+                    )
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    reviews = reviews,
+                    isLoadingReviews = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoadingReviews = false,
+                    errorMessage = "리뷰 불러오기에 실패했습니다: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    // 리뷰 작성
+    fun writeReview(
+        productId: String,
+        rating: Int,
+        content: String?,
+        imageUris: List<Uri>
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSaving = true, errorMessage = null)
+            try {
+                val userId = auth.currentUser?.uid
+                    ?: throw IllegalStateException("사용자가 로그인되어 있지 않습니다.")
+                
+                // 이미지 업로드
+                val imageUrls = if (imageUris.isNotEmpty()) {
+                    imageUris.map { uri ->
+                        val imageId = UUID.randomUUID().toString()
+                        val imageRef = storage.reference.child("reviews/$imageId.jpg")
+                        val uploadTask = imageRef.putFile(uri).await()
+                        uploadTask.storage.downloadUrl.await().toString()
+                    }
+                } else {
+                    emptyList()
+                }
+                
+                // reviewId 생성 (productId + UUID)
+                val reviewId = "${productId}_${UUID.randomUUID()}"
+                
+                // 리뷰 저장
+                val reviewData = hashMapOf(
+                    "reviewId" to reviewId,
+                    "productId" to productId,
+                    "userId" to userId,
+                    "rating" to rating,
+                    "content" to (content ?: ""),
+                    "imageUrls" to imageUrls,
+                    "createdAt" to com.google.firebase.Timestamp.now()
+                )
+                
+                db.collection("products")
+                    .document(productId)
+                    .collection("reviews")
+                    .document(reviewId)
+                    .set(reviewData)
+                    .await()
+                
+                // 상품의 totalScore와 reviewCount 업데이트
+                val productRef = db.collection("products").document(productId) // 경로 (주소만 가져옴)
+                val productDoc = productRef.get().await() // 상단에서 주어진 경로를 이용해 실제 데이터를 가져옴
+                
+                val currentTotalScore = (productDoc.get("totalScore") as? Number)?.toDouble() ?: 0.0
+                val currentReviewCount = (productDoc.get("reviewCount") as? Number)?.toInt() ?: 0
+                
+                val newTotalScore = currentTotalScore + rating
+                val newReviewCount = currentReviewCount + 1
+                
+                productRef.update(
+                    "totalScore", newTotalScore,
+                    "reviewCount", newReviewCount
+                ).await()
+                
+                // 현재 상품 정보 업데이트
+                val updatedProduct = _uiState.value.currentProduct?.copy(
+                    totalScore = newTotalScore,
+                    reviewCount = newReviewCount
+                )
+                
+                _uiState.value = _uiState.value.copy(
+                    isSaving = false,
+                    saveSuccess = true,
+                    currentProduct = updatedProduct
+                )
+                
+                // 리뷰 목록 새로고침
+                loadReviews(productId)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isSaving = false,
+                    errorMessage = "리뷰 작성에 실패했습니다: ${e.message}"
+                )
+            }
         }
     }
 }
