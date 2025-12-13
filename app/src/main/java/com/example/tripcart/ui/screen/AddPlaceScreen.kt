@@ -132,7 +132,7 @@ fun AddPlaceScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = uiState.searchError ?: "오류가 발생했습니다",
+                            text = uiState.searchError ?: "오류가 발생했습니다.",
                             color = Color.Red
                         )
                     }
@@ -333,7 +333,7 @@ fun AddPlaceScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "이미지를 불러올 수 없습니다",
+                                    text = "이미지를 불러올 수 없습니다.",
                                     color = Color.DarkGray
                                 )
                             }

@@ -180,7 +180,7 @@ fun InviteCodeDisplayDialog(
                 if (showCopyToast) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "초대코드가 복사되었습니다",
+                        text = "초대코드가 복사되었습니다.",
                         fontSize = 14.sp,
                         color = PrimaryAccent
                     )

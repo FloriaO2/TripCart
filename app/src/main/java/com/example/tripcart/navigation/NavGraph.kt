@@ -86,11 +86,14 @@ fun TripCartNavGraph(
     // RankingViewModel도 NavGraph 레벨에서 생성하여 공유
     val sharedRankingViewModel: RankingViewModel = viewModel()
     
-    // 로그인 상태 확인을 거쳐 시작 화면 결정
-    val initialRoute = if (auth.currentUser != null) {
-        Screen.Home.route
-    } else {
-        Screen.Login.route
+    // 로그인 상태 확인을 거쳐 시작 화면 결정 (재계산 방지)
+    // NavHost의 startDestination은 컴포지션 동안 변경되면 안 되므로 remember로 고정
+    val initialRoute = remember {
+        if (auth.currentUser != null) {
+            Screen.Home.route
+        } else {
+            Screen.Login.route
+        }
     }
     
     // MapScreen으로 이동해야 하는 경우

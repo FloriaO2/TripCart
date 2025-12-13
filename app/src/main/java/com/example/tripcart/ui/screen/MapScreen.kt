@@ -562,7 +562,7 @@ fun PlaceBottomSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "상품이 없습니다",
+                            text = "상품이 없습니다.",
                             color = Color.Gray,
                             fontSize = 16.sp
                         )

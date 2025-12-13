@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -14,10 +16,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,6 +35,9 @@ import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.ListViewModel
 import com.example.tripcart.ui.viewmodel.ListItemUiState
 import com.example.tripcart.ui.viewmodel.ProductViewModel
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 
 // 상품 정보 데이터 클래스
@@ -37,9 +46,11 @@ data class ProductDetails(
     val productName: String,
     val category: String,
     val imageUrls: List<String>?,
+    val imageUris: List<android.net.Uri>? = null,
     val quantity: Int,
     val note: String?,
-    val productId: String? = null // products 컬렉션에서 불러온 ID (랭킹 반영용, null 가능)
+    val productId: String? = null, // products 컬렉션에서 불러온 ID (랭킹 반영용, null 가능)
+    val isPublic: Boolean = false // 상품 공개 여부 (공개면 public 폴더, 비공개면 user 폴더에 저장)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,11 +116,63 @@ fun AddProductToListScreen(
                                 val selectedLists = uiState.lists.filter { it.isSelected }
                                 
                                 if (selectedLists.isNotEmpty()) {
-                                    val result = listViewModel.addProductToSelectedLists(productDetails)
+                                    // 이미지 업로드 처리 (imageUris가 있는 경우)
+                                    // 공개/비공개에 따라 경로 선택: 공개면 public, 비공개면 user 경로
+                                    val uploadedImageUrls = if (productDetails.imageUris != null && productDetails.imageUris.isNotEmpty()) {
+                                        try {
+                                            // 공개/비공개에 따라 이미지 업로드
+                                            val imageUrls = productViewModel.uploadImagesForProduct(
+                                                productDetails.imageUris,
+                                                isPublic = productDetails.isPublic
+                                            )
+                                            
+                                            imageUrls
+                                        } catch (e: Exception) {
+                                            snackbarHostState.showSnackbar(
+                                                message = "이미지 업로드 실패: ${e.message}",
+                                                duration = SnackbarDuration.Long
+                                            )
+                                            isProcessing = false
+                                            return@launch
+                                        }
+                                    } else {
+                                        // 이미 업로드된 이미지 URL 사용
+                                        productDetails.imageUrls
+                                    }
+                                    
+                                    // 공개 상품인 경우 Firestore products 컬렉션에 저장
+                                    var finalProductId = productDetails.productId
+                                    if (productDetails.isPublic && uploadedImageUrls != null && uploadedImageUrls.isNotEmpty()) {
+                                        try {
+                                            val firestoreProductId = productViewModel.savePublicProductToFirestore(
+                                                productName = productDetails.productName,
+                                                category = productDetails.category,
+                                                imageUrls = uploadedImageUrls
+                                            )
+                                            if (firestoreProductId != null) {
+                                                finalProductId = firestoreProductId
+                                            }
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("AddProductToListScreen", "Failed to save public product to Firestore", e)
+                                            // Firestore 저장 실패해도 리스트 추가는 계속 진행
+                                        }
+                                    }
+                                    
+                                    // 업데이트된 productDetails로 리스트에 상품 추가
+                                    val updatedProductDetails = if (finalProductId != productDetails.productId) {
+                                        productDetails.copy(productId = finalProductId)
+                                    } else {
+                                        productDetails
+                                    }
+                                    
+                                    val result = listViewModel.addProductToSelectedLists(
+                                        updatedProductDetails,
+                                        imageUrls = uploadedImageUrls
+                                    )
                                     
                                     if (result.isSuccess) {
                                         snackbarHostState.showSnackbar(
-                                            message = "상품이 추가되었습니다",
+                                            message = "상품이 추가되었습니다.",
                                             duration = SnackbarDuration.Short
                                         )
                                         // 잠시 후 화면 닫기
@@ -117,7 +180,7 @@ fun AddProductToListScreen(
                                         onComplete()
                                     } else {
                                         snackbarHostState.showSnackbar(
-                                            message = result.exceptionOrNull()?.message ?: "오류가 발생했습니다",
+                                            message = result.exceptionOrNull()?.message ?: "오류가 발생했습니다.",
                                             duration = SnackbarDuration.Long
                                         )
                                     }
@@ -175,72 +238,195 @@ fun AddProductToListScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // 카테고리 표시
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = PrimaryBackground,
-                        modifier = Modifier
-                            .wrapContentWidth()
-                            .align(Alignment.CenterHorizontally)
-                            .padding(bottom = 12.dp)
-                            .fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = productDetails.category,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF333333)
+                    // 이미지가 있을 때만 상단에 표시
+                    // imageUris가 있으면 Uri 사용, 없으면 imageUrls 사용
+                    val imageUris = productDetails.imageUris ?: emptyList()
+                    val imageUrls = productDetails.imageUrls ?: emptyList()
+                    val hasImages = imageUris.isNotEmpty() || imageUrls.isNotEmpty()
+                    val context = LocalContext.current
+                    
+                    if (hasImages) {
+                        val imageCount = if (imageUris.isNotEmpty()) imageUris.size else imageUrls.size
+                        
+                        if (imageCount == 1) {
+                            // 이미지가 한 장일 때
+                            val imageData = if (imageUris.isNotEmpty()) imageUris[0] else imageUrls[0]
+                            val painter = rememberAsyncImagePainter(
+                                ImageRequest.Builder(context)
+                                    .data(imageData)
+                                    .build()
                             )
+                            val imageSize = painter.intrinsicSize
+                            val isImageLoaded = painter.state is AsyncImagePainter.State.Success
+                            val aspectRatio = if (isImageLoaded && imageSize.width > 0f && imageSize.height > 0f) {
+                                imageSize.width / imageSize.height
+                            } else {
+                                4f / 3f
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                            ) {
+                                Image(
+                                    painter = painter,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        } else {
+                            // 이미지가 여러 장이면 HorizontalPager 사용
+                            val pagerState = rememberPagerState(
+                                initialPage = 0,
+                                pageCount = { imageCount }
+                            )
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                            ) {
+                                HorizontalPager(
+                                    state = pagerState,
+                                    modifier = Modifier.fillMaxSize()
+                                ) { page ->
+                                    Box(
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        val imageData = if (imageUris.isNotEmpty()) imageUris[page] else imageUrls[page]
+                                        Image(
+                                            painter = rememberAsyncImagePainter(
+                                                ImageRequest.Builder(context)
+                                                    .data(imageData)
+                                                    .build()
+                                            ),
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+                                }
+                                
+                                // 페이지 인디케이터 (하단에 이미지 index 보여주는 점)
+                                if (imageCount > 1) {
+                                    Row(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .padding(bottom = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        repeat(imageCount) { index ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(
+                                                        width = if (pagerState.currentPage == index) 8.dp else 6.dp,
+                                                        height = 6.dp
+                                                    )
+                                                    .clip(RoundedCornerShape(3.dp))
+                                                    .background(
+                                                        if (pagerState.currentPage == index) 
+                                                            Color.White 
+                                                        else 
+                                                            Color.White.copy(alpha = 0.5f)
+                                                    )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     
                     // 상품 이름
                     Text(
                         text = productDetails.productName,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 22.sp
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     
-                    // 구매 수량
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.bag),
-                            contentDescription = "상품",
-                            modifier = Modifier.size(18.dp),
-                            colorFilter = ColorFilter.tint(PrimaryAccent)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "구매 수량: ${productDetails.quantity}개",
-                            fontSize = 14.sp,
-                            color = Color(0xFF333333),
-                            fontWeight = FontWeight.Medium
-                        )
+                    // 구매 수량, 카테고리
+                    if (productDetails.quantity > 0 || productDetails.category.isNotEmpty()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // 구매 수량
+                            if (productDetails.quantity > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            color = Color(0xC36A1B9A),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(0.dp)
+                                    ) {
+                                        Text(
+                                            text = "${productDetails.quantity}",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            lineHeight = 20.sp
+                                        )
+                                        Text(
+                                            text = "개",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            lineHeight = 15.sp,
+                                            modifier = Modifier.padding(bottom = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            // 카테고리
+                            if (productDetails.category.isNotEmpty()) {
+                                Text(
+                                    text = productDetails.category,
+                                    fontSize = 12.sp,
+                                    color = Color.Gray,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
                     }
                     
                     // 메모
-                    productDetails.note?.takeIf { it.isNotBlank() }?.let { note ->
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "메모: $note",
-                            fontSize = 14.sp,
-                            color = Color(0xFF666666)
-                        )
+                    if (!productDetails.note.isNullOrEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = 1.dp,
+                                    color = Color.Gray.copy(alpha = 0.3f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .background(
+                                    color = Color.Gray.copy(alpha = 0.05f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = productDetails.note!!,
+                                fontSize = 14.sp,
+                                color = Color.Black.copy(alpha = 0.9f)
+                            )
+                        }
                     }
                 }
             }
@@ -350,7 +536,7 @@ fun AddProductToListScreen(
                                     // 새로 생성한 리스트는 자동으로 선택 상태가 되고 상품이 추가됨
                                 } else {
                                     snackbarHostState.showSnackbar(
-                                        message = result.exceptionOrNull()?.message ?: "오류가 발생했습니다",
+                                        message = result.exceptionOrNull()?.message ?: "오류가 발생했습니다.",
                                         duration = SnackbarDuration.Long
                                     )
                                     isProcessing = false
@@ -530,7 +716,7 @@ private fun SelectableListItemCardForProduct(
                             text = if (listItem.places.isNotEmpty()) {
                                 listItem.places.map { it.name }.joinToString(", ")
                             } else {
-                                "상점이 없습니다"
+                                "상점이 없습니다."
                             },
                             fontSize = 13.sp,
                             maxLines = 1,
@@ -556,7 +742,7 @@ private fun SelectableListItemCardForProduct(
                         )
                         if (listItem.productCount == 0) {
                             Text(
-                                text = "상품이 존재하지 않습니다",
+                                text = "상품이 존재하지 않습니다.",
                                 fontSize = 13.sp,
                                 color = Color.Gray
                             )
@@ -569,7 +755,7 @@ private fun SelectableListItemCardForProduct(
                                     color = Color(0xFF333333)
                                 )
                                 Text(
-                                    text = "의 상품이 있습니다",
+                                    text = "의 상품이 있습니다.",
                                     fontSize = 13.sp,
                                     color = Color.Gray
                                 )

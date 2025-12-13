@@ -100,7 +100,7 @@ fun ListScreen(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                        text = "리스트가 없습니다",
+                        text = "리스트가 없습니다.",
                         color = Color.Gray,
                         fontSize = 16.sp
                     )
@@ -345,7 +345,7 @@ fun ListCard(
                             text = if (placeNames.isNotEmpty()) {
                                 placeNames.joinToString(", ")
                             } else {
-                                "상점이 없습니다"
+                                "상점이 없습니다."
                             },
                             fontSize = 13.sp,
                             maxLines = 1,
@@ -371,7 +371,7 @@ fun ListCard(
                         )
                         if (productCount == 0) {
                             Text(
-                                text = "상품이 존재하지 않습니다",
+                                text = "상품이 존재하지 않습니다.",
                                 fontSize = 13.sp,
                                 color = Color.Gray
                             )
@@ -384,7 +384,7 @@ fun ListCard(
                                     color = Color(0xFF333333)
                                 )
                                 Text(
-                                    text = "의 상품이 있습니다",
+                                    text = "의 상품이 있습니다.",
                                     fontSize = 13.sp,
                                     color = Color.Gray
                                 )

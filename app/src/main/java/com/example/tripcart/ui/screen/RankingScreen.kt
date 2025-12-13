@@ -98,7 +98,7 @@ fun RankingScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "상품 랭킹",
+                            text = "국가별 랭킹",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -120,7 +120,7 @@ fun RankingScreen(
                 
                 Button(
                     onClick = {
-                        // TODO: 상품별 리뷰 모아보기 기능
+                        // TODO: 상품별 모아보기 기능
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -135,7 +135,7 @@ fun RankingScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "상품별 리뷰",
+                            text = "전체 상품 랭킹",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -325,7 +325,7 @@ fun CountryRankingBox(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "상품이 없습니다",
+                        text = "상품이 없습니다.",
                         color = Color.Gray,
                         fontSize = 14.sp
                     )

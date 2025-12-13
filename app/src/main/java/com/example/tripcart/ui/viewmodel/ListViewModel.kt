@@ -106,11 +106,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 
                 // 정렬: 1) Room DB 리스트 먼저, 2) Firestore 리스트 나중에
-                // 각 그룹 내에서는 이름 순으로 정렬
-                mergedLists.values.toList().sortedWith(
-                    compareBy<Pair<ListEntity, Boolean>> { it.second } // false(Room DB) 먼저, true(Firestore) 나중
-                        .thenBy { it.first.name } // 이름 순으로 정렬
-                )
+                mergedLists.values.toList().sortedBy { it.second } // false(Room DB) 먼저, true(Firestore) 나중
             }.collect { mergedLists ->
                 // 각 리스트에 대한 정보를 변환
                 val listItems = mergedLists.map { (list, isFromFirestore) ->
@@ -1153,13 +1149,19 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     // 선택된 리스트들에 상품 추가
-    suspend fun addProductToSelectedLists(productDetails: com.example.tripcart.ui.screen.ProductDetails): Result<Unit> {
+    suspend fun addProductToSelectedLists(
+        productDetails: com.example.tripcart.ui.screen.ProductDetails,
+        imageUrls: List<String>? = null // 업로드된 이미지 URL (null이면 productDetails.imageUrls 사용)
+    ): Result<Unit> {
         return try {
             val selectedLists = _uiState.value.lists.filter { it.isSelected }
             
             if (selectedLists.isEmpty()) {
                 return Result.failure(Exception("리스트를 선택해주세요"))
             }
+            
+            // 사용할 이미지 URL 결정 (파라미터로 전달된 것이 우선, 없으면 productDetails의 imageUrls)
+            val finalImageUrls = imageUrls ?: productDetails.imageUrls
             
             // 각 선택된 리스트에 상품 추가
             selectedLists.forEach { listItem ->
@@ -1187,8 +1189,8 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                             if (productDetails.productId != null) {
                                 productData["productId"] = productDetails.productId
                             }
-                            if (productDetails.imageUrls != null && productDetails.imageUrls.isNotEmpty()) {
-                                productData["imageUrls"] = productDetails.imageUrls
+                            if (finalImageUrls != null && finalImageUrls.isNotEmpty()) {
+                                productData["imageUrls"] = finalImageUrls
                             }
                             if (productDetails.note != null && productDetails.note.isNotBlank()) {
                                 productData["note"] = productDetails.note
@@ -1243,7 +1245,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                             productId = productDetails.productId,  // null이면 사용자 생성 상품, 있으면 Firestore 공개 상품
                             productName = productDetails.productName,
                             category = productDetails.category,
-                            imageUrls = productDetails.imageUrls,
+                            imageUrls = finalImageUrls,
                             quantity = productDetails.quantity,
                             note = productDetails.note,
                             bought = "구매전"
@@ -1264,6 +1266,29 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                                 
                                 if (country != null && placeIds.isNotEmpty()) {
                                     updateProductStats(country, placeIds, productId, increment = true)
+                                }
+                            }
+                        }
+                    } else {
+                        // 새 리스트 생성 당시에는 존재하지 않았던 이미지나 productId를 뒤늦게 업데이트
+                        val existingProduct = listProductDao.getProductById(productDetails.id, listItem.listId)
+                        if (existingProduct != null) {
+                            val updatedProduct = existingProduct.copy(
+                                imageUrls = finalImageUrls ?: existingProduct.imageUrls,
+                                productId = productDetails.productId ?: existingProduct.productId
+                            )
+                            listProductDao.updateProduct(updatedProduct)
+                            
+                            // productId가 업데이트된 경우 랭킹 데이터도 업데이트
+                            if (productDetails.productId != null && existingProduct.productId == null) {
+                                val list = listDao.getListById(listItem.listId)
+                                if (list != null) {
+                                    val country = list.country
+                                    val placeIds = list.places.map { it.placeId }
+                                    
+                                    if (country != null && placeIds.isNotEmpty()) {
+                                        updateProductStats(country, placeIds, productDetails.productId, increment = true)
+                                    }
                                 }
                             }
                         }
@@ -1323,7 +1348,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 status = "준비중",
                 country = null, // 상품은 국가 제약 없음
                 places = emptyList(),
-                productCount = 1, // 상품 1개 추가 예정
+                productCount = 0, // 상품 추가 전이므로 0으로 시작 (추가 성공 시 증가)
                 firestoreSynced = false
             )
             listDao.insertList(listEntity)
@@ -1341,6 +1366,13 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 bought = "구매전"
             )
             listProductDao.insertProduct(productEntity)
+            
+            // 리스트의 productCount 증가
+            val list = listDao.getListById(listId)
+            if (list != null) {
+                val updatedList = list.copy(productCount = list.productCount + 1)
+                listDao.updateList(updatedList)
+            }
             
             // 리스트 목록 새로고침 (비동기로 처리)
             viewModelScope.launch {

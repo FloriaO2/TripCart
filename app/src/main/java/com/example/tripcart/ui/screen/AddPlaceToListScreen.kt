@@ -82,7 +82,7 @@ fun AddPlaceToListScreen(
                                     
                                     if (result.isSuccess) {
                                         snackbarHostState.showSnackbar(
-                                            message = "장소가 추가되었습니다",
+                                            message = "장소가 추가되었습니다.",
                                             duration = SnackbarDuration.Short
                                         )
                                         // 잠시 후 화면 닫기
@@ -90,7 +90,7 @@ fun AddPlaceToListScreen(
                                         onComplete()
                                     } else {
                                         snackbarHostState.showSnackbar(
-                                            message = result.exceptionOrNull()?.message ?: "오류가 발생했습니다",
+                                            message = result.exceptionOrNull()?.message ?: "오류가 발생했습니다.",
                                             duration = SnackbarDuration.Long
                                         )
                                     }
@@ -279,8 +279,8 @@ fun AddPlaceToListScreen(
                         !isSelectable && !isAlreadyInList
                     }
                     
-                    // 선택 가능한 리스트들 (상단)
-                    items(selectableLists) { listItem ->
+                    // 이미 장소가 들어있는 리스트들 (맨 위)
+                    items(alreadyInLists) { listItem ->
                         SelectableListItemCard(
                             listItem = listItem,
                             placeDetails = placeDetails,
@@ -290,8 +290,8 @@ fun AddPlaceToListScreen(
                         )
                     }
                     
-                    // 이미 장소가 들어있는 리스트들 (중간)
-                    items(alreadyInLists) { listItem ->
+                    // 선택 가능한 리스트들 (중간)
+                    items(selectableLists) { listItem ->
                         SelectableListItemCard(
                             listItem = listItem,
                             placeDetails = placeDetails,
@@ -352,7 +352,7 @@ fun AddPlaceToListScreen(
                                 } else {
                                     // 오류 발생 시에만 토스트 표시
                                     snackbarHostState.showSnackbar(
-                                        message = result.exceptionOrNull()?.message ?: "오류가 발생했습니다",
+                                        message = result.exceptionOrNull()?.message ?: "오류가 발생했습니다.",
                                         duration = SnackbarDuration.Long
                                     )
                                     isProcessing = false
@@ -548,7 +548,7 @@ private fun SelectableListItemCard(
                             text = if (listItem.places.isNotEmpty()) {
                                 listItem.places.map { it.name }.joinToString(", ")
                             } else {
-                                "상점이 없습니다"
+                                "상점이 없습니다."
                             },
                             fontSize = 13.sp,
                             maxLines = 1,
@@ -578,7 +578,7 @@ private fun SelectableListItemCard(
                         )
                         if (listItem.productCount == 0) {
                             Text(
-                                text = "상품이 존재하지 않습니다",
+                                text = "상품이 존재하지 않습니다.",
                                 fontSize = 13.sp,
                                 color = when {
                                     !isSelectable && !isAlreadyInList -> Color(0xFFCCCCCC)
@@ -598,7 +598,7 @@ private fun SelectableListItemCard(
                                     color = textColor
                                 )
                                 Text(
-                                    text = "의 상품이 있습니다",
+                                    text = "의 상품이 있습니다.",
                                     fontSize = 13.sp,
                                     color = Color.Gray
                                 )

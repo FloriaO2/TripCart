@@ -154,45 +154,25 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                 val userId = auth.currentUser?.uid
                     ?: throw IllegalStateException("사용자가 로그인되어 있지 않습니다.")
                 
-                // 이미지 업로드 (로컬 URI -> Firebase Storage URL)
-                // 공개 상품은 public 경로에, 비공개 상품은 user 경로에 저장
-                val imageUrls = if (imageUris.isNotEmpty()) {
-                    uploadImages(
-                        imageUris,
-                        pathType = if (isPublic) ImagePathType.PUBLIC else ImagePathType.USER
-                    )
-                } else {
-                    emptyList()
-                }
-                
+                // 이미지 업로드는 하지 않고 Uri만 전달 (AddProductToListScreen에서 리스트 선택 시 업로드)
                 // 상품 고유 ID 생성 (로컬용)
                 val productId = UUID.randomUUID().toString()
                 
-                // 공개 상품인 경우 products 컬렉션에 저장 (productName, category, imageUrls만)
-                // Firestore는 자동 생성된 20자리 영숫자 ID를 사용
+                // 공개 상품인 경우 products 컬렉션 업로드는
+                // AddProductListScreen에서 리스트 추가 시점에 이미지 업로드 후 저장하도록
                 var firestoreProductId: String? = null
-                if (isPublic) {
-                    val productData = hashMapOf(
-                        "productName" to productName,
-                        "category" to category,
-                        "imageUrls" to imageUrls
-                    )
-                    // .add()를 사용하여 Firestore는 자동 생성된 20자리 영숫자 ID를 사용
-                    val documentRef = db.collection("products")
-                        .add(productData)
-                        .await()
-                    firestoreProductId = documentRef.id // 자동 생성된 20자리 영숫자 ID
-                }
                 
-                // 저장된 상품 정보 저장
+                // 저장된 상품 정보 저장 (이미지 URL은 null, Uri만 전달)
                 val savedProduct = com.example.tripcart.ui.screen.ProductDetails(
                     id = productId,
                     productName = productName,
                     category = category,
-                    imageUrls = imageUrls,
+                    imageUrls = null, // 아직 업로드하지 않음
+                    imageUris = imageUris, // Uri 전달
                     quantity = quantity,
                     note = productMemo.ifBlank { null },
-                    productId = firestoreProductId
+                    productId = firestoreProductId,
+                    isPublic = isPublic // 공개 여부 전달
                 )
                 
                 _uiState.value = _uiState.value.copy(
@@ -238,6 +218,44 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     // 리스트에 상품 이미지 업로드 (LIST 경로 사용)
     suspend fun uploadImagesToList(imageUris: List<Uri>, listId: String): List<String> {
         return uploadImages(imageUris, pathType = ImagePathType.LIST, listId = listId)
+    }
+    
+    // 공개/비공개에 따라 이미지 업로드 (공개면 public, 비공개면 user 경로)
+    suspend fun uploadImagesForProduct(imageUris: List<Uri>, isPublic: Boolean): List<String> {
+        return uploadImages(
+            imageUris,
+            pathType = if (isPublic) ImagePathType.PUBLIC else ImagePathType.USER
+        )
+    }
+    
+    // 공개 상품을 Firestore products 컬렉션에 저장
+    suspend fun savePublicProductToFirestore(
+        productName: String,
+        category: String,
+        imageUrls: List<String>
+    ): String? {
+        return try {
+            if (imageUrls.isEmpty()) {
+                // 이미지가 없으면 저장하지 않음
+                return null
+            }
+            
+            val productData = hashMapOf(
+                "productName" to productName,
+                "category" to category,
+                "imageUrls" to imageUrls
+            )
+            
+            // Firestore에 저장 (자동 생성된 20자리 영숫자 ID 사용)
+            val documentRef = db.collection("products")
+                .add(productData)
+                .await()
+            
+            documentRef.id // 자동 생성된 20자리 영숫자 ID 반환
+        } catch (e: Exception) {
+            android.util.Log.e("ProductViewModel", "Failed to save public product to Firestore", e)
+            null
+        }
     }
     
     // 초대코드가 발급된 리스트는 이미지들을 user 경로에서 list 경로로 복사
@@ -373,7 +391,8 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                     imageUrls = allImageUrls,
                     quantity = quantity,
                     note = productMemo.ifBlank { null },
-                    productId = firestoreProductId
+                    productId = firestoreProductId,
+                    isPublic = false // Firestore에서 불러온 상품은 공개 불가
                 )
                 
                 _uiState.value = _uiState.value.copy(

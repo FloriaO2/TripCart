@@ -32,8 +32,8 @@ class ListConverter {
      * @return 콤마로 구분된 문자열
      */
     @TypeConverter
-    fun fromStringList(value: List<String>): String {
-        return value.joinToString(separator = ",")
+    fun fromStringList(value: List<String>?): String {
+        return value?.joinToString(separator = ",") ?: ""
     }
     
     /*
@@ -42,8 +42,8 @@ class ListConverter {
      * @return 문자열 리스트
      */
     @TypeConverter
-    fun toStringList(value: String): List<String> {
-        return if (value.isEmpty()) {
+    fun toStringList(value: String?): List<String> {
+        return if (value.isNullOrEmpty()) {
             emptyList()
         } else {
             value.split(",")
@@ -60,8 +60,8 @@ class ListConverter {
      * @return 구분자로 연결된 문자열
      */
     @TypeConverter
-    fun fromPlaceList(value: List<Place>): String {
-        if (value.isEmpty()) return ""
+    fun fromPlaceList(value: List<Place>?): String {
+        if (value.isNullOrEmpty()) return ""
         return value.joinToString(separator = ";;;") { place ->
             "${place.name}|||${place.placeId}"
         }
@@ -75,8 +75,8 @@ class ListConverter {
      * @return Place 리스트
      */
     @TypeConverter
-    fun toPlaceList(value: String): List<Place> {
-        if (value.isEmpty()) return emptyList()
+    fun toPlaceList(value: String?): List<Place> {
+        if (value.isNullOrEmpty()) return emptyList()
         
         return try {
             value.split(";;;").mapNotNull { item ->

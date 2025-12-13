@@ -62,6 +62,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import com.example.tripcart.ui.components.InviteCodeDialog
 import com.example.tripcart.ui.components.InviteCodeDisplayDialog
+import java.util.Calendar
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -256,7 +258,7 @@ fun ListDetailScreen(
                         .padding(paddingValues),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("리스트를 찾을 수 없습니다", color = Color.Gray)
+                    Text("리스트를 찾을 수 없습니다.", color = Color.Gray)
                 }
             } else {
                 LazyColumn(
@@ -340,8 +342,8 @@ fun ListDetailScreen(
                                                         }
                                                     }
                                                 )
-                                                Column(
-                                                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                                                 ){
                                                     Text(
                                                         text = "진행 상태",
@@ -352,7 +354,8 @@ fun ListDetailScreen(
                                                     Text(
                                                         text = "탭하여 변경 가능",
                                                         fontSize = 11.sp,
-                                                        color = Color(0xFF666666)
+                                                        color = Color(0xFF666666),
+                                                        modifier = Modifier.padding(top = 1.dp)
                                                     )
                                                 }
                                             }
@@ -390,7 +393,7 @@ fun ListDetailScreen(
                                             Text(
                                                 text = "네트워크 연결과 무관하게 사용 가능합니다.",
                                                 fontSize = 14.sp,
-                                                color = Color(0xFF666666),
+                                                color = Color(0xFF333333),
                                                 lineHeight = 20.sp
                                             )
                                         }
@@ -443,8 +446,8 @@ fun ListDetailScreen(
                                                         }
                                                     }
                                                 )
-                                                Column(
-                                                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                                                 ){
                                                     Text(
                                                         text = "진행 상태",
@@ -455,7 +458,8 @@ fun ListDetailScreen(
                                                     Text(
                                                         text = "탭하여 변경 가능",
                                                         fontSize = 11.sp,
-                                                        color = Color(0xFF666666)
+                                                        color = Color(0xFF666666),
+                                                        modifier = Modifier.padding(top = 1.dp)
                                                     )
                                                 }
                                             }
@@ -476,7 +480,7 @@ fun ListDetailScreen(
                                                     .padding(8.dp)
                                             ) {
                                                 Icon(
-                                                    painter = painterResource(id = R.drawable.group_add),
+                                                    painter = painterResource(id = R.drawable.invitekey),
                                                     contentDescription = "그룹 추가",
                                                     tint = Color.White,
                                                     modifier = Modifier.size(24.dp)
@@ -701,13 +705,15 @@ fun ListDetailScreen(
                                     val place = placesDetails[index]
                                     PlaceCard(
                                         place = place,
+                                        totalPlacesCount = placesDetails.size,
                                         onMapClick = {
                                             // 구글맵 길찾기 연동
-                                            // placeId를 우선 사용, 불가능하면 위도/경도 사용
+                                            // placeId는 실제 구글맵 검색과 호환 안 되는 경우가 많아,
+                                            // 길찾기 시에는 위도/경도만 사용
                                             val uri = if (place.placeId.isNotEmpty()) {
-                                                Uri.parse("https://www.google.com/maps/dir/?api=1&destination=place_id:${place.placeId}")
+                                                Uri.parse("https://www.google.com/maps/dir/?api=1&origin=current+location&destination=${place.latitude},${place.longitude}")
                                             } else if (place.latitude != 0.0 && place.longitude != 0.0) {
-                                                Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${place.latitude},${place.longitude}")
+                                                Uri.parse("https://www.google.com/maps/dir/?api=1&origin=current+location&destination=${place.latitude},${place.longitude}")
                                             } else {
                                                 null
                                             }
@@ -749,11 +755,11 @@ fun ListDetailScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 32.dp),
+                                    .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 55.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "상품이 없습니다",
+                                    text = "상품이 없습니다.",
                                     color = Color.Gray,
                                     fontSize = 16.sp
                                 )
@@ -944,10 +950,14 @@ fun StatusBadge(
 @Composable
 fun PlaceCard(
     place: PlaceDetails,
+    totalPlacesCount: Int,
     onMapClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-    val cardWidth = screenWidth * 0.85f // 화면 너비의 85%로 설정하여 살짝 모자라게
+    // 장소가 하나일 때는 90%로 해서 꽉 차게,
+    // 여러 개일 떄는 다음 장소 카드가 보일 수 있도록 85%로 설정하여 살짝 모자라게
+    val cardWidth = screenWidth * if (totalPlacesCount == 1) 0.90f else 0.85f
     
     Card(
         modifier = Modifier
@@ -961,7 +971,7 @@ fun PlaceCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // 이미지가 있을 때만 표시
             if (!place.photoUrl.isNullOrEmpty()) {
@@ -1005,85 +1015,292 @@ fun PlaceCard(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 10.dp)
             )
             
-            // 주소
-            if (!place.address.isNullOrEmpty()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = PrimaryAccent
-                    )
-                    Text(
-                        text = place.address,
-                        fontSize = 14.sp,
-                        color = Color.Gray,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+            // 장소에 대한 하위 요소들 상하 간격을 조절하기 위한 Column
+            Column{
+                // 주소
+                if (!place.address.isNullOrEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = PrimaryAccent
+                            )
+                            Text(
+                                text = place.address,
+                                fontSize = 14.sp,
+                                color = Color.Gray,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        
+                        // 길찾기 버튼
+                        IconButton(
+                            onClick = onMapClick,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.map),
+                                contentDescription = "길찾기",
+                                modifier = Modifier.size(16.dp),
+                                tint = PrimaryAccent
+                            )
+                        }
+                    }
                 }
-            }
-            
-            // 전화번호
-            if (!place.phoneNumber.isNullOrEmpty()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Phone,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = PrimaryAccent
-                    )
-                    Text(
-                        text = place.phoneNumber,
-                        fontSize = 14.sp,
-                        color = Color.Gray
-                    )
-                }
-            }
-            
-            // 운영 시간
-            if (!place.openingHours.isNullOrEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "운영 시간",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Gray
-                    )
-                    place.openingHours.take(3).forEach { hour ->
+                
+                // 전화번호
+                if (!place.phoneNumber.isNullOrEmpty()) {
+                    Row(
+                        modifier = Modifier.clickable {
+                            val intent = Intent(Intent.ACTION_DIAL).apply {
+                                data = Uri.parse("tel:${place.phoneNumber}")
+                            }
+                            context.startActivity(intent)
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Phone,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = PrimaryAccent
+                        )
                         Text(
-                            text = hour,
-                            fontSize = 12.sp,
+                            text = place.phoneNumber,
+                            fontSize = 14.sp,
                             color = Color.Gray
                         )
                     }
                 }
-            }
-            
-            // 지도 버튼
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                IconButton(
-                    onClick = onMapClick,
-                    modifier = Modifier.size(40.dp)
+                
+                // 웹사이트
+                if (!place.websiteUri.isNullOrEmpty()) {
+                    Row(
+                        modifier = Modifier.clickable {
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                data = Uri.parse(place.websiteUri)
+                            }
+                            context.startActivity(intent)
+                        }
+                            // 전화번호 - 웹사이트 사이 여백이 묘하게 좁아보여서 여백 통일시키기 위해 추가
+                            .padding(top = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.link),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = PrimaryAccent
+                        )
+                        Text(
+                            text = place.websiteUri,
+                            fontSize = 14.sp,
+                            color = Color.Gray,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                
+                // 운영 시간
+            if (!place.openingHours.isNullOrEmpty()) {
+                var isExpanded by remember { mutableStateOf(false) }
+                
+                // 현재 시간 기준으로 해당 나라의 요일 계산
+                val currentDayOfWeek = remember(place.country) {
+                    val calendar = Calendar.getInstance()
+                    // 기기 시간대를 이용해 요일 계산
+                    // 해외로 나가면 기기 시간대 자체가 해외 기준으로 바뀌므로 문제 없이 사용 가능!
+                    calendar.timeZone = TimeZone.getDefault()
+                    calendar.get(Calendar.DAY_OF_WEEK)
+                }
+                
+                // 요일 이름 매핑 (Calendar.DAY_OF_WEEK: 1=일요일, 2=월요일, ..., 7=토요일)
+                val dayNames = listOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
+                val shortDayNames = listOf("일", "월", "화", "수", "목", "금", "토")
+                val currentDayName = dayNames[currentDayOfWeek - 1]
+                
+                // 오늘의 운영시간 찾기
+                val todayHours = place.openingHours.find { it.startsWith(currentDayName) }
+                    ?.substringAfter(": ") ?: "정보 없음"
+                
+                // 전체 요일별 운영시간 파싱
+                val parsedHours = place.openingHours.mapNotNull { hourText ->
+                    val parts = hourText.split(": ", limit = 2)
+                    if (parts.size == 2) {
+                        val dayName = parts[0]
+                        val hours = parts[1]
+                        val dayIndex = dayNames.indexOf(dayName)
+                        if (dayIndex >= 0) {
+                            Triple(dayIndex, dayName, hours)
+                        } else null
+                    } else null
+                }.sortedBy { it.first }
+                
+                Column(
+                    modifier = Modifier.padding(bottom = 8.dp)
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.map),
-                        contentDescription = "길찾기",
-                        modifier = Modifier.size(16.dp),
-                        tint = PrimaryAccent
-                    )
+                    // 상단: 시계 아이콘 + '운영 시간' 텍스트 + 토글 버튼
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.clock),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = PrimaryAccent
+                            )
+                            Text(
+                                text = "운영 시간",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF333333)
+                            )
+                        }
+                        
+                        // 토글 버튼
+                        IconButton(
+                            onClick = { isExpanded = !isExpanded },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = if (isExpanded) "접기" else "펼치기",
+                                modifier = Modifier.size(20.dp),
+                                tint = Color.Gray
+                            )
+                        }
+                    }
+                    
+                    // 오늘의 운영시간 표시 (토글이 닫혀있을 때만)
+                    if (!isExpanded) {
+                        val todayIsClosed = todayHours.contains("휴무") || todayHours.contains("Closed") || todayHours.trim().isEmpty() || todayHours == "정보 없음"
+                        val todayDayIndex = currentDayOfWeek - 1
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 요일 이름 (배경색 + border)
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = if (todayIsClosed) 
+                                            Color(0xFFFFE5E5) // 휴무일은 붉은 계열
+                                        else 
+                                            Color(0xFFE5F3FF), // 일반 요일은 파란 계열
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
+                                    .border(
+                                        width = 2.dp,
+                                        color = PrimaryAccent,
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = shortDayNames[todayDayIndex],
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (todayIsClosed) 
+                                        Color(0xFFCC0000) // 휴무일은 붉은 계열
+                                    else 
+                                        Color(0xFF0066CC) // 일반 요일은 파란 계열
+                                )
+                            }
+                            
+                            // 운영 시간
+                            Text(
+                                text = if (todayIsClosed) "휴무" else todayHours,
+                                fontSize = 14.sp,
+                                color = if (todayIsClosed) Color(0xFFCC0000) else Color.Gray
+                            )
+                        }
+                    }
+                    
+                    // 전체 요일 운영시간 (토글 열렸을 때만 표시)
+                    if (isExpanded) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            parsedHours.forEach { (dayIndex, dayName, hours) ->
+                                val isClosed = hours.contains("휴무") || hours.contains("Closed") || hours.trim().isEmpty()
+                                val isToday = dayIndex == currentDayOfWeek - 1
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 요일 이름 (배경색 + 오늘에 해당하는 요일에만 border 추가)
+                                    Box(
+                                        modifier = Modifier
+                                            .background(
+                                                color = if (isClosed) 
+                                                    Color(0xFFFFE5E5) // 휴무일은 붉은 계열
+                                                else 
+                                                    Color(0xFFE5F3FF), // 일반 요일은 파란 계열
+                                                shape = RoundedCornerShape(6.dp)
+                                            )
+                                            .then(
+                                                if (isToday) {
+                                                    Modifier.border(
+                                                        width = 2.dp,
+                                                        color = PrimaryAccent,
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    )
+                                                } else {
+                                                    Modifier
+                                                }
+                                            )
+                                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = shortDayNames[dayIndex],
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isClosed) 
+                                                Color(0xFFCC0000) // 휴무일은 붉은 계열
+                                            else 
+                                                Color(0xFF0066CC) // 일반 요일은 파란 계열
+                                        )
+                                    }
+                                    
+                                    // 운영 시간
+                                    Text(
+                                        text = if (isClosed) "휴무" else hours,
+                                        fontSize = if (isToday) 14.sp else 12.sp,
+                                        color = if (isClosed) Color(0xFFCC0000) else Color.Gray
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 }
             }
         }
