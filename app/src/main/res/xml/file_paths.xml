@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider를 위한 경로 설정 파일 -->
+
+<!-- 채팅에서 카메라로 촬영한 데이터(외부 파일 디렉토리)를 앱 내부에 저장하기 위해 사용 -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path name="my_images" path="." />
+</paths>
+

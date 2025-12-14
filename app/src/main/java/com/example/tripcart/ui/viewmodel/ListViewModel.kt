@@ -880,6 +880,9 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                             // sharedWith 배열에서 자신 제거
                             updates["sharedWith"] = FieldValue.arrayRemove(userId)
                             
+                            // allMembers 배열에서 자신 제거
+                            updates["allMembers"] = FieldValue.arrayRemove(userId)
+                            
                             // participants 맵에서 자신 제거
                             updates["participants.$userId"] = FieldValue.delete()
                             
@@ -1577,6 +1580,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 "places" to placesList,
                 "ownerId" to userId,
                 "sharedWith" to emptyList<String>(),
+                "allMembers" to listOf(userId), // ownerId를 포함한 모든 멤버
                 "inviteCode" to inviteCode,
                 "right" to right,
                 "participants" to participants
@@ -1673,6 +1677,14 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     add(userId)
                 }
                 
+                // allMembers 업데이트 (ownerId + sharedWith)
+                val existingAllMembers = listDoc.get("allMembers") as? List<*> ?: emptyList<Any?>()
+                val updatedAllMembers = existingAllMembers.toMutableList().apply {
+                    if (!contains(userId)) {
+                        add(userId)
+                    }
+                }
+                
                 // participants 맵에 사용자 추가 (닉네임 연동 목적)
 
                 // 기존 participants 필드 불러오기
@@ -1702,6 +1714,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     .update(
                         mapOf(
                             "sharedWith" to updatedSharedWith,
+                            "allMembers" to updatedAllMembers,
                             "participants" to participants
                         )
                     )
@@ -1970,7 +1983,83 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
             Result.failure(e)
         }
     }
+    
+    // 채팅 메시지 전송
+    suspend fun sendChatMessage(listId: String, message: String, imageUrl: String? = null): Result<Unit> {
+        return try {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                return Result.failure(Exception("로그인이 필요합니다."))
+            }
+            
+            if (message.isBlank() && imageUrl == null) {
+                return Result.failure(Exception("메시지 또는 이미지를 입력해주세요."))
+            }
+            
+            val chatData = hashMapOf<String, Any>(
+                "senderId" to userId,
+                "createdAt" to com.google.firebase.Timestamp.now()
+            )
+            
+            // Not Null (이미지와 텍스트 중 존재하는 값을 실제 데이터로 가짐)
+            chatData["message"] = imageUrl ?: message
+            
+            db.collection("lists")
+                .document(listId)
+                .collection("list_chats")
+                .add(chatData)
+                .await()
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    // 채팅 메시지 실시간 Flow로 가져오기
+    fun getChatMessagesFlow(listId: String): Flow<List<ChatMessage>> = callbackFlow {
+        val listener = db.collection("lists")
+            .document(listId)
+            .collection("list_chats")
+            .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.ASCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList()) // 에러 발생 시 빈 리스트 전송
+                    return@addSnapshotListener
+                }
+                
+                // mapNotNull - Null인 값은 결과에서 제외
+                val messages = snapshot?.documents?.mapNotNull { doc ->
+                    try {
+                        val data = doc.data ?: return@mapNotNull null // 데이터가 없으면 Null 반환
+                        ChatMessage(
+                            messageId = doc.id,
+                            senderId = data["senderId"] as? String ?: "",
+                            message = data["message"] as? String ?: "",
+                            createdAt = (data["createdAt"] as? com.google.firebase.Timestamp)?.toDate() ?: java.util.Date()
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                } ?: emptyList()
+                
+                trySend(messages)
+            }
+        
+        // 채팅창이 꺼지면 자동으로 채팅방 리스너를 제거함으로써 불필요한 네트워크 요청 방지
+        awaitClose {
+            listener.remove()
+        }
+    }
 }
+
+// 채팅 메시지 데이터 클래스
+data class ChatMessage(
+    val messageId: String,
+    val senderId: String,
+    val message: String,
+    val createdAt: java.util.Date
+)
 
 // 참여자 정보 데이터 클래스
 data class ListParticipantInfo(

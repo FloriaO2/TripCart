@@ -62,6 +62,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import com.example.tripcart.ui.components.InviteCodeDialog
 import com.example.tripcart.ui.components.InviteCodeDisplayDialog
+import com.example.tripcart.ui.components.ChatDialog
 import java.util.Calendar
 import java.util.TimeZone
 
@@ -104,6 +105,9 @@ fun ListDetailScreen(
     
     // 이미지 확대 오버레이
     var expandedImageIndex by remember { mutableStateOf<Pair<Int, List<String>>?>(null) }
+    
+    // 채팅 다이얼로그 표시 여부
+    var showChatDialog by remember { mutableStateOf(false) }
     
     // 리스트 정보 로드
     LaunchedEffect(listId) {
@@ -226,17 +230,32 @@ fun ListDetailScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         
-                        // 우측 편집 아이콘
+                        // 우측 개인 리스트일 경우 편집 아이콘, 공유 리스트일 경우 채팅 아이콘
+                        // isFirestoreList를 먼저 확인해서 올바른 아이콘만 렌더링할 수 있도록
+                        val isShared = isFirestoreList == true
                         IconButton(
-                            onClick = onEditList,
+                            onClick = {
+                                if (isShared) {
+                                    showChatDialog = true
+                                } else {
+                                    onEditList()
+                                }
+                            },
                             modifier = Modifier
                                 .size(40.dp)
                                 .align(Alignment.CenterEnd)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "편집"
-                            )
+                            if (isFirestoreList == true) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.chat),
+                                    contentDescription = "채팅"
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "편집"
+                                )
+                            }
                         }
                     }
                 }
@@ -324,7 +343,7 @@ fun ListDetailScreen(
                                         ) {
                                             // 좌측: 진행 상태 텍스트와 상태 뱃지
                                             Row(
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 StatusBadge(
@@ -428,7 +447,7 @@ fun ListDetailScreen(
                                         ) {
                                             // 좌측: 진행 상태 텍스트와 상태 뱃지
                                             Row(
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 StatusBadge(
@@ -501,7 +520,7 @@ fun ListDetailScreen(
                                             modifier = Modifier.fillMaxWidth()
                                                 .padding(horizontal = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
                                             Box(
                                                 modifier = Modifier
@@ -909,6 +928,15 @@ fun ListDetailScreen(
                     showInviteCodeDisplayDialog = false
                     inviteCode = null // 메모리 정리 목적
                 }
+            )
+        }
+        
+        // 채팅 다이얼로그
+        if (showChatDialog && isFirestoreList == true) {
+            ChatDialog(
+                listId = listId,
+                onDismiss = { showChatDialog = false },
+                viewModel = viewModel
             )
         }
     }
