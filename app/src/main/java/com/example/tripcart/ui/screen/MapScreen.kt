@@ -44,6 +44,8 @@ import com.example.tripcart.ui.components.AppTopBar
 import com.example.tripcart.ui.theme.PrimaryAccent
 import com.example.tripcart.ui.viewmodel.ListViewModel
 import com.example.tripcart.ui.viewmodel.PlaceDetails
+import com.example.tripcart.ui.viewmodel.NotificationViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.CameraUpdate
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -90,7 +92,9 @@ fun MapScreen(
     onNavigateToRoute: (String) -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onNavigateToListDetail: (String) -> Unit = {},
-    listViewModel: ListViewModel
+    onNavigateToNotification: () -> Unit = {},
+    listViewModel: ListViewModel,
+    notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val context = LocalContext.current
 
@@ -355,15 +359,16 @@ fun MapScreen(
         isLoadingPlaces = false
     }
 
+    val notificationState by notificationViewModel.uiState.collectAsState()
+    
     Scaffold(
         containerColor = Color.White,
         topBar = {
             AppTopBar(
                 title = "지도",
-                onNotificationClick = {
-                    // TODO: 알림 기능 구현
-                },
-                onLogoClick = onNavigateToHome
+                onNotificationClick = onNavigateToNotification,
+                onLogoClick = onNavigateToHome,
+                unreadNotificationCount = notificationState.unreadCount
             )
         },
         bottomBar = {

@@ -74,6 +74,7 @@ fun ListDetailScreen(
     onEditList: () -> Unit = {},
     onEditProduct: (String, String) -> Unit = { _, _ -> }, // productId, listId
     onGroupAddClick: () -> Unit = {}, // 그룹 추가 버튼 클릭
+    openChatOnStart: Boolean = false, // 푸시 알림으로부터 이동 시 채팅 팝업 자동 열기
     viewModel: ListViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -130,6 +131,14 @@ fun ListDetailScreen(
                     // 에러 처리
                 }
             }
+        }
+    }
+    
+    // 푸시 알림으로부터 이동한 경우 채팅 팝업 자동 열기
+    LaunchedEffect(isFirestoreList, openChatOnStart) {
+        if (openChatOnStart && isFirestoreList == true) {
+            // Firestore 리스트 확인이 완료된 후 채팅 팝업 열기
+            showChatDialog = true
         }
     }
     

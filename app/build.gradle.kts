@@ -86,6 +86,7 @@ dependencies {
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
     implementation(libs.firebase.storage.ktx)
+    implementation("com.google.firebase:firebase-messaging-ktx")
 
     // Google Sign-In
     implementation(libs.play.services.auth)

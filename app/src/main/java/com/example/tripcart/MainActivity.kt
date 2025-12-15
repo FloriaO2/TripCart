@@ -34,6 +34,12 @@ class MainActivity : ComponentActivity() {
     // 푸시 알림으로부터 MapScreen으로 이동해야 하는지 여부를 추적
     private val shouldNavigateToMapState = mutableStateOf(false)
     
+    // 푸시 알림으로부터 ListDetail로 이동해야 하는지 여부를 추적
+    private val shouldNavigateToListDetailState = mutableStateOf<String?>(null)
+    
+    // ListDetail로 이동 시 채팅 팝업 열어야 하는지 추적 (푸시 알림 통해 접근 vs 앱 내 접근)
+    private val shouldOpenChatState = mutableStateOf(false)
+    
     // 알림 권한 요청 런처 (Android 13 이상)
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission() // 한 번에 하나만 요청
@@ -99,10 +105,32 @@ class MainActivity : ComponentActivity() {
         // Intent에서 MapScreen으로 이동해야 하는지 확인
         shouldNavigateToMapState.value = intent.getBooleanExtra("navigate_to_map", false)
         
+        // FCM 푸시 알림 클릭 시
+        // Intent에서 데이터를 읽어 ListDetail로 이동하기 위한 정보 추출
+        // 백그라운드 상태일 경우 Intent extras에서 데이터 직접 가져오기
+        val listId = intent.extras?.getString("listId")
+            ?: intent.getStringExtra("listId") 
+            ?: intent.data?.getQueryParameter("listId")
+        val navigateTo = intent.extras?.getString("navigateTo")
+            ?: intent.getStringExtra("navigateTo") 
+            ?: intent.data?.getQueryParameter("navigateTo")
+        val openChatStr = intent.extras?.getString("openChat")
+            ?: intent.getStringExtra("openChat") 
+            ?: intent.data?.getQueryParameter("openChat")
+        val openChat = openChatStr?.toBoolean() ?: intent.getBooleanExtra("openChat", false)
+
+        // intent.data?.scheme == "tripcart"는 추후 딥링크랑 연동해서 사용할 수 있도록 미리 구현
+        if ((navigateTo == "list_detail" || intent.data?.scheme == "tripcart") && !listId.isNullOrEmpty()) {
+            shouldNavigateToListDetailState.value = listId
+            shouldOpenChatState.value = openChat
+        }
+        
         setContent { // UI 조작
             // shouldNavigateToMapState 상태가 변경되면 재렌더링
             // shouldNavigateToMapState 자체가 mutableStateOf라 remember 불필요!
             val shouldNavigateToMap by shouldNavigateToMapState
+            val shouldNavigateToListDetail by shouldNavigateToListDetailState
+            val shouldOpenChat by shouldOpenChatState
             
             TripCartTheme {
                 Surface(
@@ -141,7 +169,16 @@ class MainActivity : ComponentActivity() {
                         // MapScreen으로의 이동이 완료되면 shouldNavigateToMapState를 false로 리셋
                         onNavigateToMapComplete = {
                             shouldNavigateToMapState.value = false
-                        }
+                        },
+                        // 푸시 알림으로부터 ListDetail로 이동해야 하는지 전달
+                        shouldNavigateToListDetail = shouldNavigateToListDetail,
+                        // ListDetail로의 이동이 완료되면 shouldNavigateToListDetailState를 null로 리셋
+                        onNavigateToListDetailComplete = {
+                            shouldNavigateToListDetailState.value = null
+                            shouldOpenChatState.value = false
+                        },
+                        // 채팅 팝업을 열어야 하는지 전달
+                        shouldOpenChat = shouldOpenChat
                     )
                 }
             }
@@ -179,8 +216,29 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         // 이미 Intent가 존재하는 상황이므로 굳이 새 Intent 만들지 말고 기존 Intent 사용
         setIntent(intent)
+        
         // Intent에 navigate_to_map이 존재하면 shouldNavigateToMapState가 true, 없으면 false
         shouldNavigateToMapState.value = intent.getBooleanExtra("navigate_to_map", false)
+        
+        // FCM 푸시 알림 클릭 시
+        // Intent에서 데이터를 읽어 ListDetail로 이동하기 위한 정보 추출
+        // 백그라운드 상태일 경우 Intent extras에서 데이터 직접 가져오기
+        val listId = intent.extras?.getString("listId") 
+            ?: intent.getStringExtra("listId") 
+            ?: intent.data?.getQueryParameter("listId")
+        val navigateTo = intent.extras?.getString("navigateTo")
+            ?: intent.getStringExtra("navigateTo") 
+            ?: intent.data?.getQueryParameter("navigateTo")
+        val openChatStr = intent.extras?.getString("openChat")
+            ?: intent.getStringExtra("openChat") 
+            ?: intent.data?.getQueryParameter("openChat")
+        val openChat = openChatStr?.toBoolean() ?: intent.getBooleanExtra("openChat", false)
+        
+        // intent.data?.scheme == "tripcart"는 추후 딥링크랑 연동해서 사용할 수 있도록 미리 구현
+        if ((navigateTo == "list_detail" || intent.data?.scheme == "tripcart") && !listId.isNullOrEmpty()) {
+            shouldNavigateToListDetailState.value = listId
+            shouldOpenChatState.value = openChat
+        }
     }
     
     // 위치 권한 요청 함수

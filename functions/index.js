@@ -1,6 +1,7 @@
+
+//  Firebase Cloud Functions 정의 파일
+
 /*
- *  Firebase Cloud Functions 정의 파일
- *
  *  - 원래는 {countries}와 {places}끼리 각각의 컬렉션으로 분리되어있었는데
  *    컬렉션끼리는 비교가 불가능하다고 해서
  *    {countries}와 {places}를 같은 컬렉션 내 문서 단위로 변경하기 위해 Cloud Functions 사용
@@ -324,4 +325,84 @@ exports.migrateRankingData = functions.https.onRequest(async (req, res) => {
     });
   }
 });
+
+/*
+ * 채팅 알림 푸시 전송 함수
+ * notifications/{userId}/user_notifications/{notificationId} 문서 생성 시
+ * 수신자의 FCM 토큰을 이용해 푸시 알림 전송
+ */
+
+exports.sendChatNotification = functions.firestore
+  .document('notifications/{userId}/user_notifications/{notificationId}')
+  .onCreate(async (snap, context) => {
+    const notificationData = snap.data();
+    const userId = context.params.userId;
+    
+    // 채팅 알림만 처리
+    if (notificationData.type !== 'chat') {
+      return null;
+    }
+    
+    // 발신자가 자신인 경우 스킵
+    const senderId = notificationData.senderId;
+    if (senderId === userId) {
+      return null;
+    }
+    
+    try {
+      // 사용자의 FCM 토큰 가져오기
+      const userDoc = await db.collection('users').doc(userId).get();
+      
+      if (!userDoc.exists) {
+        console.log(`User ${userId} not found`);
+        return null;
+      }
+      
+      const fcmToken = userDoc.data()?.fcmToken;
+      
+      if (!fcmToken) {
+        console.log(`FCM token not found for user ${userId}`);
+        return null;
+      }
+      
+      // 알림 제목: 리스트 이름
+      const title = notificationData.listName || '리스트';
+      
+      // 알림 본문: {발신자닉네임}: {메시지내용} (간단한 표시용)
+      const senderNickname = notificationData.senderNickname || '익명';
+      const messageContent = notificationData.message || '';
+      const body = `${senderNickname}: ${messageContent}`;
+      
+      // FCM 메시지 생성
+      // - notification payload를 제거하고 data payload만 사용하면
+      //   백그라운드에서도 onMessageReceived가 호출되어 커스텀 알림을 표시할 수 있음
+      const fcmMessage = {
+        token: fcmToken,
+        // 백그라운드에서의 커스텀 알림 구현을 위해
+        // notification payload 제거 및 data payload만 사용
+        data: { // data payload!
+          listId: notificationData.listId || '',
+          type: 'chat',
+          notificationId: context.params.notificationId,
+          senderNickname: senderNickname, // 전송자 닉네임
+          message: messageContent, // 메시지 내용
+          title: title,
+          body: body,
+          navigateTo: 'list_detail',
+          openChat: 'true' // 채팅 팝업 자동 열기
+        },
+        android: {
+          priority: 'high'
+        }
+      };
+      
+      // FCM 푸시 전송
+      const response = await admin.messaging().send(fcmMessage);
+      console.log('Successfully sent message:', response);
+      return null;
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      return null;
+    }
+  });
 

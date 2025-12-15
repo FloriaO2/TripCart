@@ -33,6 +33,7 @@ import com.example.tripcart.ui.screen.RankingDetailScreen
 import com.example.tripcart.ui.screen.AllProductsScreen
 import com.example.tripcart.ui.screen.ProductReviewScreen
 import com.example.tripcart.ui.screen.WriteReviewScreen
+import com.example.tripcart.ui.screen.NotificationScreen
 import com.example.tripcart.ui.viewmodel.ProductViewModel
 import com.google.firebase.auth.FirebaseAuth
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,6 +41,7 @@ import com.example.tripcart.ui.viewmodel.PlaceViewModel
 import com.example.tripcart.ui.viewmodel.PlaceDetails
 import com.example.tripcart.ui.viewmodel.ListViewModel
 import com.example.tripcart.ui.viewmodel.RankingViewModel
+import com.example.tripcart.ui.viewmodel.NotificationViewModel
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -58,6 +60,7 @@ sealed class Screen(val route: String) {
         fun createRoute(country: String) = "ranking_detail/$country"
     }
     object MyPage : Screen("my_page")
+    object Notification : Screen("notification")
     object AddPlace : Screen("add_place")
     object AddProduct : Screen("add_product")
     object AddPlaceToList : Screen("add_place_to_list")
@@ -80,7 +83,10 @@ fun TripCartNavGraph(
     onRequestNotificationPermission: () -> Unit = {}, // 알림 권한 요청 콜백
     onRequestBackgroundLocationPermission: () -> Unit = {}, // 백그라운드 위치 권한 요청 콜백
     shouldNavigateToMap: Boolean = false, // MapScreen으로 이동해야 하는지 여부
-    onNavigateToMapComplete: () -> Unit = {} // MapScreen으로 이동 완료 후 호출되는 콜백
+    onNavigateToMapComplete: () -> Unit = {}, // MapScreen으로 이동 완료 후 호출되는 콜백
+    shouldNavigateToListDetail: String? = null, // ListDetail로 이동해야 하는지 여부 (listId)
+    onNavigateToListDetailComplete: () -> Unit = {}, // ListDetail로 이동 완료 후 호출되는 콜백
+    shouldOpenChat: Boolean = false // 채팅 팝업을 열어야 하는지 여부
 ) {
     val auth = FirebaseAuth.getInstance()
     
@@ -95,6 +101,9 @@ fun TripCartNavGraph(
     
     // RankingViewModel도 NavGraph 레벨에서 생성하여 공유
     val sharedRankingViewModel: RankingViewModel = viewModel()
+    
+    // NotificationViewModel도 NavGraph 레벨에서 생성하여 공유
+    val sharedNotificationViewModel: NotificationViewModel = viewModel()
     
     // 로그인 상태 확인을 거쳐 시작 화면 결정 (재계산 방지)
     // NavHost의 startDestination은 컴포지션 동안 변경되면 안 되므로 remember로 고정
@@ -116,6 +125,36 @@ fun TripCartNavGraph(
             }
             // 이동 완료 후 콜백을 호출해 shouldNavigateToMapState 값을 false로 리셋
             onNavigateToMapComplete()
+        }
+    }
+    
+    // 알림 페이지에서 ListDetail로 이동할 때 채팅을 열기 위한 상태
+    var openChatForListId by remember { mutableStateOf<String?>(null) }
+    
+    // ListDetail로 이동해야 하는 경우 (FCM 푸시 알림)
+    LaunchedEffect(shouldNavigateToListDetail, shouldOpenChat) {
+        val listId = shouldNavigateToListDetail
+        if (listId != null && auth.currentUser != null) {
+            // 푸시 알림으로부터 이동한 경우 채팅을 열기 위한 상태 설정
+            if (shouldOpenChat) {
+                openChatForListId = listId
+            }
+
+            // ListScreen을 백 스택에 추가한 후 ListDetail로 이동
+            // 이렇게 하면 뒤로가기 시 ListScreen으로 이동할 수 있음
+            navController.navigate(Screen.List.route) {
+                // HomeScreen을 백 스택에 남겨두기
+                popUpTo(Screen.Home.route) { inclusive = false }
+                launchSingleTop = true
+            }
+            
+            // ListDetail로 이동
+            navController.navigate(Screen.ListDetail.createRoute(listId)) {
+                // ListScreen을 백 스택에 남겨두어 뒤로가기 시 ListScreen으로 이동할 수 있도록
+                popUpTo(Screen.List.route) { inclusive = false }
+            }
+            // 이동 완료 후 콜백을 호출해 shouldNavigateToListDetailState 값을 null로 리셋
+            onNavigateToListDetailComplete()
         }
     }
     
@@ -167,7 +206,11 @@ fun TripCartNavGraph(
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }
-                }
+                },
+                onNavigateToNotification = {
+                    navController.navigate(Screen.Notification.route)
+                },
+                notificationViewModel = sharedNotificationViewModel
             )
         }
         
@@ -215,7 +258,11 @@ fun TripCartNavGraph(
                 onNavigateToListDetail = { listId ->
                     navController.navigate(Screen.ListDetail.createRoute(listId))
                 },
-                viewModel = sharedListViewModel
+                onNavigateToNotification = {
+                    navController.navigate(Screen.Notification.route)
+                },
+                viewModel = sharedListViewModel,
+                notificationViewModel = sharedNotificationViewModel
             )
         }
         
@@ -226,10 +273,28 @@ fun TripCartNavGraph(
             )
         ) { backStackEntry ->
             val listId = backStackEntry.arguments?.getString("listId") ?: ""
+            // 푸시 알림 또는 알림 페이지에서 이동한 경우 채팅 팝업 열기
+            var openChatState by remember { mutableStateOf(false) }
+            
+            // 채팅 열기 상태 확인
+            LaunchedEffect(listId) {
+                if (openChatForListId == listId) {
+                    openChatState = true
+                    openChatForListId = null // 상태 리셋
+                }
+            }
+            
+            val openChat = openChatState
+            
             ListDetailScreen(
                 listId = listId,
                 onBack = {
-                    navController.popBackStack()
+                    // 백 스택이 비어있으면 ListScreen으로 이동, 아니면 이전 화면으로 이동
+                    if (!navController.popBackStack()) {
+                        navController.navigate(Screen.List.route) {
+                            popUpTo(Screen.List.route) { inclusive = true }
+                        }
+                    }
                 },
                 onEditList = {
                     // TODO: 리스트 편집 화면으로 이동
@@ -240,6 +305,7 @@ fun TripCartNavGraph(
                 onGroupAddClick = {
                     // TODO: 그룹 추가 기능 구현
                 },
+                openChatOnStart = openChat,
                 viewModel = sharedListViewModel
             )
         }
@@ -395,7 +461,11 @@ fun TripCartNavGraph(
                 onNavigateToListDetail = { listId ->
                     navController.navigate(Screen.ListDetail.createRoute(listId))
                 },
-                listViewModel = sharedListViewModel
+                onNavigateToNotification = {
+                    navController.navigate(Screen.Notification.route)
+                },
+                listViewModel = sharedListViewModel,
+                notificationViewModel = sharedNotificationViewModel
             )
         }
         
@@ -445,7 +515,11 @@ fun TripCartNavGraph(
                 onNavigateToAllProducts = {
                     navController.navigate(Screen.AllProducts.route)
                 },
-                viewModel = sharedRankingViewModel
+                onNavigateToNotification = {
+                    navController.navigate(Screen.Notification.route)
+                },
+                viewModel = sharedRankingViewModel,
+                notificationViewModel = sharedNotificationViewModel
             )
         }
         
@@ -572,7 +646,27 @@ fun TripCartNavGraph(
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.MyPage.route) { inclusive = true }
                     }
-                }
+                },
+                onNavigateToNotification = {
+                    navController.navigate(Screen.Notification.route)
+                },
+                notificationViewModel = sharedNotificationViewModel
+            )
+        }
+        
+        composable(Screen.Notification.route) {
+            NotificationScreen(
+                onBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToListDetail = { listId ->
+                    // 채팅을 열기 위한 상태 설정
+                    openChatForListId = listId
+                    navController.navigate(Screen.ListDetail.createRoute(listId)) {
+                        popUpTo(Screen.Notification.route) { inclusive = false }
+                    }
+                },
+                viewModel = sharedNotificationViewModel
             )
         }
     }

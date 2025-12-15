@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -12,27 +14,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.tripcart.R
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tripcart.ui.components.AppBottomBar
 import com.example.tripcart.ui.components.AppTopBar
+import com.example.tripcart.ui.viewmodel.NotificationViewModel
 import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToRoute: (String) -> Unit = {},
-    onNavigateToHome: () -> Unit = {}
+    onNavigateToHome: () -> Unit = {},
+    onNavigateToNotification: () -> Unit = {},
+    notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val user = FirebaseAuth.getInstance().currentUser
+    val notificationState by notificationViewModel.uiState.collectAsState()
     
     Scaffold(
         containerColor = Color.White,
         topBar = {
             AppTopBar(
                 title = "진행 중인 리스트",
-                onNotificationClick = {
-                    // TODO: 알림 기능 구현
-                },
-                onLogoClick = onNavigateToHome
+                onNotificationClick = onNavigateToNotification,
+                onLogoClick = onNavigateToHome,
+                unreadNotificationCount = notificationState.unreadCount
             )
         },
         bottomBar = {

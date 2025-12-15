@@ -32,11 +32,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.theme.SecondaryBackground
 import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.ListViewModel
 import com.example.tripcart.ui.viewmodel.ListItemUiState
+import com.example.tripcart.ui.viewmodel.NotificationViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,9 +50,12 @@ fun ListScreen(
     onAddClick: () -> Unit = {},
     onNavigateToPlaceSearch: () -> Unit = {},
     onNavigateToListDetail: (String) -> Unit = {},
-    viewModel: ListViewModel = viewModel()
+    onNavigateToNotification: () -> Unit = {},
+    viewModel: ListViewModel = viewModel(),
+    notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val uiState = viewModel.uiState.collectAsState().value
+    val notificationState by notificationViewModel.uiState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var showJoinDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -64,14 +71,13 @@ fun ListScreen(
         topBar = {
             AppTopBar(
                 title = "전체 리스트",
-                onNotificationClick = {
-                    // TODO: 알림 기능 구현
-                },
+                onNotificationClick = onNavigateToNotification,
                 onLogoClick = onNavigateToHome,
                 onActionClick = {
                     showAddDialog = true
                 },
-                showActionButton = true
+                showActionButton = true,
+                unreadNotificationCount = notificationState.unreadCount
             )
         },
         bottomBar = {

@@ -2002,17 +2002,86 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
             )
             
             // Not Null (이미지와 텍스트 중 존재하는 값을 실제 데이터로 가짐)
-            chatData["message"] = imageUrl ?: message
+            val messageContent = imageUrl ?: message
+            chatData["message"] = messageContent
             
+            // 채팅 메시지 저장
             db.collection("lists")
                 .document(listId)
                 .collection("list_chats")
                 .add(chatData)
                 .await()
             
+            // 알림 생성 - 비동기 처리
+            viewModelScope.launch {
+                try {
+                    createChatNotification(listId, userId, messageContent)
+                } catch (e: Exception) {
+                    // 에러 발생
+                }
+            }
+            
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+    
+    // 채팅 알림 생성
+    private suspend fun createChatNotification(listId: String, senderId: String, message: String) {
+        try {
+            // 리스트 정보 가져오기
+            val listDoc = db.collection("lists").document(listId).get().await()
+            if (!listDoc.exists()) return
+            
+            val listName = listDoc.getString("name") ?: "리스트"
+            val allMembers = (listDoc.get("allMembers") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+            
+            // 발신자 닉네임 가져오기
+            val participantsMap = (listDoc.get("participants") as? Map<*, *>) ?: emptyMap<Any?, Any>()
+            val senderNickname = (participantsMap[senderId] as? Map<*, *>)?.get("nickname") as? String ?: "익명"
+            
+            // 이미지인 경우와 텍스트인 경우를 분리해서 메시지 내용 처리
+            val displayMessage = if (message.startsWith("https://firebasestorage") || 
+                (message.startsWith("http") && (message.endsWith(".jpg") || message.endsWith(".png")))) {
+                "(이미지)"
+            } else {
+                message
+            }
+            
+            // 발신자를 제외한 모든 멤버에게 알림 생성
+            val batch = db.batch()
+            val timestamp = com.google.firebase.Timestamp.now()
+            
+            allMembers.forEach { memberId ->
+                if (memberId != senderId) {
+                    val notificationRef = db.collection("notifications")
+                        .document(memberId)
+                        .collection("user_notifications")
+                        .document()
+                    
+                    val notificationData = hashMapOf<String, Any>(
+                        "listId" to listId,
+                        "listName" to listName,
+                        "senderId" to senderId,
+                        "senderNickname" to senderNickname,
+                        "message" to displayMessage,
+                        "createdAt" to timestamp,
+                        "isRead" to false,
+                        "type" to "chat"
+                    )
+                    
+                    batch.set(notificationRef, notificationData)
+                }
+            }
+            
+            batch.commit().await()
+            
+            // notification 문서 데이터가 추가되면 자동으로 FCM 푸시 시작
+            // Cloud Functions의 sendChatNotification 트리거를 이용해 푸시 알림 생성 자동 처리!
+            
+        } catch (e: Exception) {
+            // 에러 발생
         }
     }
     

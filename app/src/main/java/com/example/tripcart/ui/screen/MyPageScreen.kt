@@ -31,6 +31,10 @@ import com.example.tripcart.ui.components.AppBottomBar
 import com.example.tripcart.ui.components.AppTopBar
 import com.example.tripcart.util.BackgroundLocationPermissionHelper
 import com.example.tripcart.util.NotificationPermissionHelper
+import com.example.tripcart.ui.viewmodel.NotificationViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,12 +44,15 @@ fun MyPageScreen(
     onNavigateToRoute: (String) -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onRequestNotificationPermission: () -> Unit = {},
-    onRequestBackgroundLocationPermission: () -> Unit = {}
+    onRequestBackgroundLocationPermission: () -> Unit = {},
+    onNavigateToNotification: () -> Unit = {},
+    notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val user = FirebaseAuth.getInstance().currentUser
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val notificationState by notificationViewModel.uiState.collectAsState()
     
     // 알림 권한 상태
     var isNotificationEnabled by remember {
@@ -92,10 +99,9 @@ fun MyPageScreen(
         topBar = {
             AppTopBar(
                 title = "마이페이지",
-                onNotificationClick = {
-                    // TODO: 알림 기능 구현
-                },
-                onLogoClick = onNavigateToHome
+                onNotificationClick = onNavigateToNotification,
+                onLogoClick = onNavigateToHome,
+                unreadNotificationCount = notificationState.unreadCount
             )
         },
         bottomBar = {

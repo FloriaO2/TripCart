@@ -35,6 +35,7 @@ import com.example.tripcart.ui.components.AppTopBar
 import com.example.tripcart.ui.theme.PrimaryAccent
 import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.viewmodel.RankingViewModel
+import com.example.tripcart.ui.viewmodel.NotificationViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,19 +46,21 @@ fun RankingScreen(
     onNavigateToCountryDetail: (String) -> Unit = {}, // TOP3 국가 - 전체 상품 보기 텍스트 버튼을 통해
                                                       // 이동하는 페이지
     onNavigateToAllProducts: () -> Unit = {}, // 전체 상품 모아보기 버튼을 통해 이동하는 페이지
-    viewModel: RankingViewModel = viewModel()
+    onNavigateToNotification: () -> Unit = {},
+    viewModel: RankingViewModel = viewModel(),
+    notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val notificationState by notificationViewModel.uiState.collectAsState()
     
     Scaffold(
         containerColor = Color.White,
         topBar = {
             AppTopBar(
                 title = "랭킹",
-                onNotificationClick = {
-                    // TODO: 알림 기능 구현
-                },
-                onLogoClick = onNavigateToHome
+                onNotificationClick = onNavigateToNotification,
+                onLogoClick = onNavigateToHome,
+                unreadNotificationCount = notificationState.unreadCount
             )
         },
         bottomBar = {
