@@ -13,6 +13,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,7 +35,9 @@ import com.example.tripcart.R
 import com.example.tripcart.ui.theme.PrimaryAccent
 import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.viewmodel.PlaceViewModel
+import com.example.tripcart.ui.viewmodel.ProductViewModel
 import com.example.tripcart.ui.viewmodel.RankingViewModel
+import com.google.firebase.auth.FirebaseAuth
 
 // 국가 이름과 국기 이모티콘 매핑
 private val countryFlagMap = mapOf(
@@ -178,14 +183,25 @@ fun RankingDetailScreen(
     selectedCountry: String? = null,
     onBack: () -> Unit = {},
     onNavigateToReview: (String) -> Unit = {}, // 상품 리뷰 페이지로 이동
+    onNavigateToAddProduct: (String) -> Unit = {}, // productId 전달한 상태로 상품 추가 페이지로 이동
     rankingViewModel: RankingViewModel = viewModel(),
-    placeViewModel: PlaceViewModel = viewModel()
+    placeViewModel: PlaceViewModel = viewModel(),
+    productViewModel: ProductViewModel = viewModel()
 ) {
     val rankingUiState by rankingViewModel.uiState.collectAsState()
     val placeUiState by placeViewModel.uiState.collectAsState()
+    val productUiState by productViewModel.uiState.collectAsState()
     
     var showCountryDialog by remember { mutableStateOf(false) }
     var showPlaceDialog by remember { mutableStateOf(false) }
+    
+    // favorite 목록 로드
+    LaunchedEffect(Unit) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user != null) {
+            productViewModel.loadFavorites()
+        }
+    }
     
     // 선택한 국가가 변경될 때마다 국가별 상품 랭킹 데이터 요청
     // countryProducts에 전체 상품 데이터가 없을 때만 로드 
@@ -371,7 +387,10 @@ fun RankingDetailScreen(
                             ProductRankingDetailItem(
                                 product = product,
                                 rank = ranks[index],
-                                onClick = { onNavigateToReview(product.productId) }
+                                onClick = { onNavigateToReview(product.productId) },
+                                onAddClick = { onNavigateToAddProduct(product.productId) },
+                                isFavorite = productUiState.favoriteProductIds.contains(product.productId),
+                                onFavoriteClick = { productViewModel.toggleFavorite(product.productId) }
                             )
                         }
                     }
@@ -409,13 +428,16 @@ fun RankingDetailScreen(
 fun ProductRankingDetailItem(
     product: com.example.tripcart.ui.viewmodel.ProductRanking,
     rank: Int,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    onAddClick: () -> Unit = {},
+    isFavorite: Boolean = false,
+    onFavoriteClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick), // 전체 카드 클릭시 리뷰 페이지로 이동
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
@@ -432,7 +454,7 @@ fun ProductRankingDetailItem(
             // 순위 뱃지
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(30.dp)
                     .clip(CircleShape)
                     .background(
                         when (rank) {
@@ -447,7 +469,7 @@ fun ProductRankingDetailItem(
                 Text(
                     text = rank.toString(),
                     color = Color.White,
-                    fontSize = 18.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -494,6 +516,37 @@ fun ProductRankingDetailItem(
                     fontSize = 14.sp,
                     color = Color.Gray
                 )
+            }
+            
+            // 하트 아이콘 버튼 + 리스트 추가 아이콘 버튼
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 하트 아이콘 버튼
+                IconButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier.size(30.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (isFavorite) "찜 해제" else "찜하기",
+                        tint = if (isFavorite) Color(0xFFFF1744) else Color.Gray,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                
+                // 리스트 추가 아이콘 버튼
+                IconButton(
+                    onClick = onAddClick,
+                    modifier = Modifier.size(30.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "리스트에 추가",
+                        tint = PrimaryAccent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
     }

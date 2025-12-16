@@ -69,10 +69,18 @@ val PRODUCT_CATEGORIES = listOf(
 fun AddProductScreen(
     onBack: () -> Unit,
     onProductSaved: (com.example.tripcart.ui.screen.ProductDetails) -> Unit,
+    productId: String? = null, // Firestore에서 불러올 상품 ID
     viewModel: ProductViewModel = viewModel()
 ) {
     val uiState = viewModel.uiState.collectAsState().value
     val context = LocalContext.current
+    
+    // productId가 있으면 Firestore에서 상품 불러오기
+    LaunchedEffect(productId) {
+        productId?.let {
+            viewModel.loadProductFromFirestore(it)
+        }
+    }
     
     // ViewModel에서 저장된 draftProduct 불러오기
     val draftProduct = uiState.draftProduct

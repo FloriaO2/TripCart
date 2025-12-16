@@ -63,6 +63,9 @@ sealed class Screen(val route: String) {
     object Notification : Screen("notification")
     object AddPlace : Screen("add_place")
     object AddProduct : Screen("add_product")
+    object AddProductWithId : Screen("add_product/{productId}") {
+        fun createRoute(productId: String) = "add_product/$productId"
+    }
     object AddPlaceToList : Screen("add_place_to_list")
     object AddProductToList : Screen("add_product_to_list")
     object AllProducts : Screen("all_products")
@@ -535,8 +538,12 @@ fun TripCartNavGraph(
                 onNavigateToReview = { productId ->
                     navController.navigate(Screen.ProductReview.createRoute(productId))
                 },
+                onNavigateToAddProduct = { productId ->
+                    navController.navigate(Screen.AddProductWithId.createRoute(productId))
+                },
                 rankingViewModel = sharedRankingViewModel,
-                placeViewModel = sharedPlaceViewModel
+                placeViewModel = sharedPlaceViewModel,
+                productViewModel = sharedProductViewModel
             )
         }
         
@@ -555,8 +562,32 @@ fun TripCartNavGraph(
                 onNavigateToReview = { productId ->
                     navController.navigate(Screen.ProductReview.createRoute(productId))
                 },
+                onNavigateToAddProduct = { productId ->
+                    navController.navigate(Screen.AddProductWithId.createRoute(productId))
+                },
                 rankingViewModel = sharedRankingViewModel,
-                placeViewModel = sharedPlaceViewModel
+                placeViewModel = sharedPlaceViewModel,
+                productViewModel = sharedProductViewModel
+            )
+        }
+        
+        composable(
+            route = Screen.AddProductWithId.route,
+            arguments = listOf(
+                navArgument("productId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val productId = backStackEntry.arguments?.getString("productId") ?: ""
+            AddProductScreen(
+                productId = productId,
+                onBack = {
+                    sharedProductViewModel.clearDraftProduct()
+                    navController.popBackStack()
+                },
+                onProductSaved = { productDetails ->
+                    navController.navigate(Screen.AddProductToList.route)
+                },
+                viewModel = sharedProductViewModel
             )
         }
         
@@ -567,6 +598,9 @@ fun TripCartNavGraph(
                 },
                 onNavigateToReview = { productId ->
                     navController.navigate(Screen.ProductReview.createRoute(productId))
+                },
+                onNavigateToAddProduct = { productId ->
+                    navController.navigate(Screen.AddProductWithId.createRoute(productId))
                 },
                 viewModel = sharedProductViewModel
             )

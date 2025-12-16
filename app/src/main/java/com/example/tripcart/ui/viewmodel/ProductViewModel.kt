@@ -63,7 +63,8 @@ data class ProductUiState(
     val allProducts: List<SearchedProduct> = emptyList(), // 전체 상품 목록
     val currentProduct: SearchedProduct? = null, // 현재 선택된 상품 (리뷰 페이지용)
     val reviews: List<Review> = emptyList(), // 리뷰 목록
-    val isLoadingReviews: Boolean = false // 리뷰 로딩 중
+    val isLoadingReviews: Boolean = false, // 리뷰 로딩 중
+    val favoriteProductIds: Set<String> = emptySet() // 찜한 상품 ID 목록
 )
 
 class ProductViewModel(application: Application) : AndroidViewModel(application) {
@@ -73,6 +74,14 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     private val db = FirebaseFirestore.getInstance()
     private val storage = FirebaseStorage.getInstance()
     private val auth = FirebaseAuth.getInstance()
+    
+    // favorite 리스너
+    private var favoriteListener: com.google.firebase.firestore.ListenerRegistration? = null
+    
+    override fun onCleared() {
+        super.onCleared()
+        favoriteListener?.remove()
+    }
     
     // 이미지 업로드 경로 타입
     enum class ImagePathType {
@@ -671,6 +680,83 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                     errorMessage = "리뷰 작성에 실패했습니다: ${e.message}"
                 )
             }
+        }
+    }
+    
+    // 찜한 상품 목록 로드
+    fun loadFavorites() {
+        val userId = auth.currentUser?.uid ?: return
+        
+        favoriteListener?.remove() // 기존 리스너 제거 (리스너 중복 방지)
+        
+        favoriteListener = db.collection("users")
+            .document(userId)
+            .collection("favorite")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    return@addSnapshotListener
+                }
+                
+                snapshot?.let {
+                    // 각 문서의 ID만 추출해 리스트로 변환
+                    // 단, 중복 제거를 위해 toSet 이용해서 Set으로 변환
+                    val favoriteIds = it.documents.map { doc -> doc.id }.toSet()
+                    _uiState.value = _uiState.value.copy(favoriteProductIds = favoriteIds)
+                }
+            }
+    }
+    
+    // 찜한 상품 추가
+    fun addFavorite(productId: String) {
+        val userId = auth.currentUser?.uid ?: return
+        
+        viewModelScope.launch {
+            try {
+                db.collection("users")
+                    .document(userId)
+                    .collection("favorite")
+                    .document(productId)
+                    .set(mapOf("productId" to productId))
+                    .await()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "찜하기에 실패했습니다: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    // 찜한 상품 제거
+    fun removeFavorite(productId: String) {
+        val userId = auth.currentUser?.uid ?: return
+        
+        viewModelScope.launch {
+            try {
+                db.collection("users")
+                    .document(userId)
+                    .collection("favorite")
+                    .document(productId)
+                    .delete()
+                    .await()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "찜 해제에 실패했습니다: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    // 찜한 상품인지 확인
+    fun isFavorite(productId: String): Boolean {
+        return _uiState.value.favoriteProductIds.contains(productId)
+    }
+    
+    // 찜 아이콘 버튼 클릭시 찜 추가, 해제 변환
+    fun toggleFavorite(productId: String) {
+        if (isFavorite(productId)) {
+            removeFavorite(productId)
+        } else {
+            addFavorite(productId)
         }
     }
 }

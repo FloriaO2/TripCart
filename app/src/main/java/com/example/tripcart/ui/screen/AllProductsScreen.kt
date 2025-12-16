@@ -8,7 +8,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarHalf
@@ -34,15 +37,25 @@ import com.example.tripcart.ui.theme.SecondaryBackground
 import com.example.tripcart.ui.theme.TagBackground
 import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.ProductViewModel
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AllProductsScreen(
     onBack: () -> Unit = {},
     onNavigateToReview: (String) -> Unit = {},
+    onNavigateToAddProduct: (String) -> Unit = {}, // productId 전달한 상태로 상품 추가 페이지로 이동
     viewModel: ProductViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    
+    // favorite 목록 로드
+    LaunchedEffect(Unit) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user != null) {
+            viewModel.loadFavorites()
+        }
+    }
     
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategories by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -281,7 +294,12 @@ fun AllProductsScreen(
                                 modifier = Modifier.padding(horizontal = 16.dp),
                                 onReviewClick = {
                                     onNavigateToReview(product.productId)
-                                }
+                                },
+                                onAddClick = {
+                                    onNavigateToAddProduct(product.productId)
+                                },
+                                isFavorite = uiState.favoriteProductIds.contains(product.productId),
+                                onFavoriteClick = { viewModel.toggleFavorite(product.productId) }
                             )
                         }
                     }
@@ -331,8 +349,19 @@ fun FilterTag(
 fun ProductItem(
     product: com.example.tripcart.ui.viewmodel.SearchedProduct,
     modifier: Modifier = Modifier,
-    onReviewClick: () -> Unit = {}
+    onReviewClick: () -> Unit = {},
+    onAddClick: () -> Unit = {},
+    isFavorite: Boolean = false,
+    onFavoriteClick: () -> Unit = {}
 ) {
+    
+    // 평균 별점 계산
+    val averageRating = if (product.reviewCount > 0) {
+        product.totalScore / product.reviewCount
+    } else {
+        0.0
+    }
+    
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -348,9 +377,9 @@ fun ProductItem(
                 .fillMaxWidth()
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            // 상품 이미지
+            // 좌측 - 상품 이미지
             if (product.imageUrls.isNotEmpty()) {
                 AsyncImage(
                     model = product.imageUrls[0],
@@ -376,94 +405,133 @@ fun ProductItem(
                 }
             }
             
-            // 상품 정보
+            // 우측 - 상품 정보
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .height(80.dp) // 이미지 높이와 동일하게 설정
             ) {
-                // 상품 이름
-                Text(
-                    text = product.productName,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2
-                )
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                // 카테고리
-                Text(
-                    text = product.category,
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
-            }
-            
-            // 평균 별점 및 리뷰 버튼
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
-                // 평균 별점
-                val averageRating = if (product.reviewCount > 0) {
-                    product.totalScore / product.reviewCount
-                } else {
-                    0.0
-                }
-                
-                // 평균 별점 텍스트 및 별 표시
-                Column(
-                    horizontalAlignment = Alignment.End
+                // 상단 - 평균 별점 시각화 + 평균 별점 텍스트 및 리뷰 개수 + 전체 리뷰 보러가기 텍스트 버튼
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 평균 별점 시각화
-                    val starColor = if (averageRating > 0) PrimaryBackground else Color.Gray
+                    // 평균 별점 시각화 + 평균 별점 텍스트 및 리뷰 개수
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        repeat(5) { index ->
-                            // 각 별이 끝나는 지점이 1.0, 2.0, 3.0, 4.0, 5.0
-                            val starValue = index + 1.0
-                            // 평균 별점이 0보다 크고,
-                            // 각 별이 시작하는 지점이 평균 별점보다 작으며,
-                            // 각 별이 끝나는 지점이 평균 별점보다 크면 반 별 처리
-                            val isHalfStar = averageRating > 0 && 
-                                           starValue - 1.0 < averageRating && 
-                                           averageRating < starValue
-                            
-                            val (icon, tint) = when {
-                                starValue <= averageRating -> Icons.Default.Star to starColor // 꽉 찬 별
-                                isHalfStar -> Icons.Default.StarHalf to starColor // 반 별
-                                else -> Icons.Default.Star to Color.Gray.copy(alpha = 0.3f) // 빈 별
+                        // 평균 별점 시각화
+                        val starColor = if (averageRating > 0) PrimaryBackground else Color.Gray
+                        Row{
+                            repeat(5) { index ->
+                                // 각 별이 끝나는 지점이 1.0, 2.0, 3.0, 4.0, 5.0
+                                val starValue = index + 1.0
+                                // 평균 별점이 0보다 크고,
+                                // 각 별이 시작하는 지점이 평균 별점보다 작으며,
+                                // 각 별이 끝나는 지점이 평균 별점보다 크면 반 별 처리
+                                val isHalfStar = averageRating > 0 && 
+                                               starValue - 1.0 < averageRating && 
+                                               averageRating < starValue
+                                
+                                val (icon, tint) = when {
+                                    starValue <= averageRating -> Icons.Default.Star to starColor // 꽉 찬 별
+                                    isHalfStar -> Icons.Default.StarHalf to starColor // 반 별
+                                    else -> Icons.Default.Star to Color.Gray.copy(alpha = 0.3f) // 빈 별
+                                }
+                                
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = tint
+                                )
                             }
-                            
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = tint
-                            )
                         }
+                        
+                        // 평균 별점 텍스트 및 리뷰 개수
+                        Text(
+                            text = if (product.reviewCount > 0) {
+                                String.format("%.1f (%d)", averageRating, product.reviewCount)
+                            } else {
+                                "0.0 (0)"
+                            },
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (averageRating > 0) PrimaryBackground else Color.Gray
+                        )
                     }
- 
-                    // 평균 별점 텍스트 및 리뷰 개수
+                    
+                    // 전체 리뷰 보러가기 텍스트 버튼
                     Text(
-                        text = if (product.reviewCount > 0) {
-                            String.format("%.1f (%d)", averageRating, product.reviewCount)
-                        } else {
-                            "0.0 (0)"
-                        },
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (averageRating > 0) PrimaryBackground else Color.Gray
+                        text = "전체 리뷰 보러가기",
+                        fontSize = 12.sp,
+                        color = PrimaryAccent,
+                        modifier = Modifier.clickable { onReviewClick() }
                     )
                 }
                 
-                // 전체 리뷰 보러가기 텍스트
-                Text(
-                    text = "전체 리뷰 보러가기",
-                    fontSize = 12.sp,
-                    color = PrimaryAccent,
-                    modifier = Modifier.clickable { onReviewClick() }
-                )
+                // 하단 - 좌측은 상품명 및 카테고리 + 우측은 아이콘 버튼들
+                // 상단 별점 관련 Row를 제외한 나머지 공간에서 세로 기준 중앙정렬
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 좌측 - 상품명 및 카테고리
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = product.productName,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2
+                        )
+                        
+                        Text(
+                            text = product.category,
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                    }
+                    
+                    // 우측 - 하트 아이콘 버튼 + 리스트 추가 아이콘 버튼
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(0.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 하트 아이콘 버튼
+                        IconButton(
+                            onClick = onFavoriteClick,
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = if (isFavorite) "찜 해제" else "찜하기",
+                                tint = if (isFavorite) Color(0xFFFF1744) else Color.Gray,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        
+                        // 리스트 추가 아이콘 버튼
+                        IconButton(
+                            onClick = onAddClick,
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "리스트에 추가",
+                                tint = PrimaryAccent,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
