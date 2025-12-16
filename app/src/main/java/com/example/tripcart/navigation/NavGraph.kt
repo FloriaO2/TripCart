@@ -215,6 +215,9 @@ fun TripCartNavGraph(
                 onNavigateToNotification = {
                     navController.navigate(Screen.Notification.route)
                 },
+                onNavigateToListDetail = { listId ->
+                    navController.navigate(Screen.ListDetail.createRoute(listId))
+                },
                 notificationViewModel = sharedNotificationViewModel
             )
         }

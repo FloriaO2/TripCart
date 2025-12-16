@@ -188,7 +188,6 @@ fun ListScreen(
                                         onClick = {
                                             viewModel.deleteList(listItem.listId, listItem.isFromFirestore)
                                             showDeleteDialog = false
-                                            isOwner = null
                                         }
                                     ) {
                                         Text(confirmText, color = Color.Red)
@@ -199,7 +198,6 @@ fun ListScreen(
                                     TextButton(
                                         onClick = { 
                                             showDeleteDialog = false
-                                            isOwner = null
                                         }
                                     ) {
                                         Text("취소")
@@ -208,7 +206,6 @@ fun ListScreen(
                                 // 뒤로가기 클릭 등 외부 요인으로 인해 닫힐 때
                                 onDismissRequest = { 
                                     showDeleteDialog = false
-                                    isOwner = null
                                 }
                             )
                         }
