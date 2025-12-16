@@ -34,6 +34,7 @@ import com.example.tripcart.ui.screen.AllProductsScreen
 import com.example.tripcart.ui.screen.ProductReviewScreen
 import com.example.tripcart.ui.screen.WriteReviewScreen
 import com.example.tripcart.ui.screen.NotificationScreen
+import com.example.tripcart.ui.screen.FavoriteProductsScreen
 import com.example.tripcart.ui.viewmodel.ProductViewModel
 import com.google.firebase.auth.FirebaseAuth
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -75,6 +76,7 @@ sealed class Screen(val route: String) {
     object WriteReview : Screen("write_review/{productId}") {
         fun createRoute(productId: String) = "write_review/$productId"
     }
+    object FavoriteProducts : Screen("favorite_products")
 }
 
 @Composable
@@ -693,6 +695,9 @@ fun TripCartNavGraph(
                 onNavigateToNotification = {
                     navController.navigate(Screen.Notification.route)
                 },
+                onNavigateToFavoriteProducts = {
+                    navController.navigate(Screen.FavoriteProducts.route)
+                },
                 notificationViewModel = sharedNotificationViewModel
             )
         }
@@ -710,6 +715,21 @@ fun TripCartNavGraph(
                     }
                 },
                 viewModel = sharedNotificationViewModel
+            )
+        }
+        
+        composable(Screen.FavoriteProducts.route) {
+            FavoriteProductsScreen(
+                onBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToReview = { productId ->
+                    navController.navigate(Screen.ProductReview.createRoute(productId))
+                },
+                onNavigateToAddProduct = { productId ->
+                    navController.navigate(Screen.AddProductWithId.createRoute(productId))
+                },
+                viewModel = sharedProductViewModel
             )
         }
     }

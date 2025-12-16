@@ -759,6 +759,75 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
             addFavorite(productId)
         }
     }
+    
+    // 찜한 상품 목록 불러오기
+    fun loadFavoriteProducts() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            try {
+                val userId = auth.currentUser?.uid
+                    ?: throw IllegalStateException("사용자가 로그인되어 있지 않습니다.")
+                
+                // users/{userId}/favorite 하위 컬렉션에서 상품 ID 목록 가져오기
+                val favoriteSnapshot = db.collection("users")
+                    .document(userId)
+                    .collection("favorite")
+                    .get()
+                    .await()
+                
+                val favoriteProductIds = favoriteSnapshot.documents.map { it.id }
+                
+                if (favoriteProductIds.isEmpty()) {
+                    _uiState.value = _uiState.value.copy(
+                        allProducts = emptyList(),
+                        isLoading = false
+                    )
+                    return@launch
+                }
+                
+                // 각 상품 ID로 products 컬렉션에서 상세 정보 불러오기
+                val products = favoriteProductIds.mapNotNull { productId ->
+                    try {
+                        val doc = db.collection("products")
+                            .document(productId)
+                            .get()
+                            .await()
+                        
+                        if (!doc.exists()) {
+                            return@mapNotNull null
+                        }
+                        
+                        val productName = doc.getString("productName") ?: return@mapNotNull null
+                        val category = doc.getString("category") ?: ""
+                        val imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                        val totalScore = (doc.get("totalScore") as? Number)?.toDouble() ?: 0.0
+                        val reviewCount = (doc.get("reviewCount") as? Number)?.toInt() ?: 0
+                        
+                        SearchedProduct(
+                            productId = doc.id,
+                            productName = productName,
+                            category = category,
+                            imageUrls = imageUrls,
+                            totalScore = totalScore,
+                            reviewCount = reviewCount
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    allProducts = products,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "찜한 상품 불러오기에 실패했습니다: ${e.message}"
+                )
+            }
+        }
+    }
 }
 
 

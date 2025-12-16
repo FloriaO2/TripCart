@@ -3,9 +3,11 @@ package com.example.tripcart.ui.screen
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -46,6 +48,7 @@ fun MyPageScreen(
     onRequestNotificationPermission: () -> Unit = {},
     onRequestBackgroundLocationPermission: () -> Unit = {},
     onNavigateToNotification: () -> Unit = {},
+    onNavigateToFavoriteProducts: () -> Unit = {},
     notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val user = FirebaseAuth.getInstance().currentUser
@@ -135,6 +138,38 @@ fun MyPageScreen(
                         fontSize = 14.sp,
                         color = Color.Gray,
                         modifier = Modifier.padding(bottom = 32.dp)
+                    )
+                }
+            }
+            
+            // 찜한 상품 박스
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToFavoriteProducts() },
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                            imageVector = Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = Color(0xFFFF1744),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "찜한 상품",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.Black
                     )
                 }
             }
