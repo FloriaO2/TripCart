@@ -518,6 +518,9 @@ fun TripCartNavGraph(
                 onNavigateToNotification = {
                     navController.navigate(Screen.Notification.route)
                 },
+                onNavigateToReview = { productId ->
+                    navController.navigate(Screen.ProductReview.createRoute(productId))
+                },
                 viewModel = sharedRankingViewModel,
                 notificationViewModel = sharedNotificationViewModel
             )
@@ -528,6 +531,9 @@ fun TripCartNavGraph(
                 selectedCountry = null,
                 onBack = {
                     navController.popBackStack()
+                },
+                onNavigateToReview = { productId ->
+                    navController.navigate(Screen.ProductReview.createRoute(productId))
                 },
                 rankingViewModel = sharedRankingViewModel,
                 placeViewModel = sharedPlaceViewModel
@@ -545,6 +551,9 @@ fun TripCartNavGraph(
                 selectedCountry = country,
                 onBack = {
                     navController.popBackStack()
+                },
+                onNavigateToReview = { productId ->
+                    navController.navigate(Screen.ProductReview.createRoute(productId))
                 },
                 rankingViewModel = sharedRankingViewModel,
                 placeViewModel = sharedPlaceViewModel

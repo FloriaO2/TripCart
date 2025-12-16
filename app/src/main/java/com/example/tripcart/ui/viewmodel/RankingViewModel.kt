@@ -100,6 +100,9 @@ class RankingViewModel(application: Application) : AndroidViewModel(application)
                                 CountryRanking(country, totalCount)
                             }
                             
+                            // 모든 국가 목록 업데이트 (검색용)
+                            val allCountriesList = it.documents.map { it.id }.sorted()
+                            
                             // totalCount 내림차순 정렬 후 TOP3 추출
                             val top3 = countries.sortedByDescending { it.totalCount }.take(3)
                             
@@ -125,7 +128,8 @@ class RankingViewModel(application: Application) : AndroidViewModel(application)
                             _uiState.value = _uiState.value.copy(
                                 isLoading = false,
                                 topCountries = top3,
-                                countryProducts = countryProductsMap
+                                countryProducts = countryProductsMap,
+                                allCountries = allCountriesList
                             )
                             
                             isInitialLoad = false
@@ -147,7 +151,6 @@ class RankingViewModel(application: Application) : AndroidViewModel(application)
             .document(country)
             .collection("products")
             .orderBy("count", com.google.firebase.firestore.Query.Direction.DESCENDING)
-            .limit(5) // 5위까지만 보여주기
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     return@addSnapshotListener
@@ -237,14 +240,13 @@ class RankingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    // 국가별 상품 랭킹 로드 (TOP5)
+    // 국가별 상품 랭킹 로드 (전체 상품)
     private suspend fun loadCountryProducts(country: String): List<ProductRanking> {
         return try {
             val snapshot = db.collection("ranking_countries")
                 .document(country)
                 .collection("products")
                 .orderBy("count", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                .limit(5)
                 .get()
                 .await()
             
@@ -309,9 +311,13 @@ class RankingViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
                 
+                // 기존 countryProducts를 유지하면서 선택한 국가의 데이터만 전체 상품에 대한 걸로 업데이트
+                val currentProducts = _uiState.value.countryProducts.toMutableMap()
+                currentProducts[country] = products
+                
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    countryProducts = mapOf(country to products)
+                    countryProducts = currentProducts
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -410,6 +416,15 @@ class RankingViewModel(application: Application) : AndroidViewModel(application)
         }
         
         _uiState.value = _uiState.value.copy(filteredCountries = filtered)
+    }
+    
+    // 선택된 국가 설정 (데이터 로드 없이 국가만 설정)
+    fun setSelectedCountry(country: String) {
+        _uiState.value = _uiState.value.copy(
+            selectedCountry = country,
+            selectedPlaceId = null,
+            selectedPlaceName = null
+        )
     }
     
     // 선택 초기화

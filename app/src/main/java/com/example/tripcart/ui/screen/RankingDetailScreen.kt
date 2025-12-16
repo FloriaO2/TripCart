@@ -34,11 +34,150 @@ import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.viewmodel.PlaceViewModel
 import com.example.tripcart.ui.viewmodel.RankingViewModel
 
+// 국가 이름과 국기 이모티콘 매핑
+private val countryFlagMap = mapOf(
+"아프가니스탄" to "🇦🇫",
+"올란드 제도" to "🇦🇽",
+"알바니아" to "🇦🇱",
+"알제리" to "🇩🇿",
+"아메리칸 사모아" to "🇦🇸",
+"안도라" to "🇦🇩",
+"앙골라" to "🇦🇴",
+"앵귈라" to "🇦🇮",
+"남극" to "🇦🇶",
+"앤티가 바부다" to "🇦🇬",
+"아르헨티나" to "🇦🇷",
+"아르메니아" to "🇦🇲",
+"아루바" to "🇦🇼",
+"호주" to "🇦🇺",
+"오스트리아" to "🇦🇹",
+"아제르바이잔" to "🇦🇿",
+
+"바하마" to "🇧🇸",
+"바레인" to "🇧🇭",
+"방글라데시" to "🇧🇩",
+"바베이도스" to "🇧🇧",
+"벨라루스" to "🇧🇾",
+"벨기에" to "🇧🇪",
+"벨리즈" to "🇧🇿",
+"베냉" to "🇧🇯",
+"버뮤다" to "🇧🇲",
+"부탄" to "🇧🇹",
+"볼리비아" to "🇧🇴",
+"카리브 네덜란드" to "🇧🇶",
+"보스니아 헤르체고비나" to "🇧🇦",
+"보츠와나" to "🇧🇼",
+"부베 섬" to "🇧🇻",
+"브라질" to "🇧🇷",
+"브루나이" to "🇧🇳",
+"불가리아" to "🇧🇬",
+"부르키나파소" to "🇧🇫",
+"부룬디" to "🇧🇮",
+
+"캄보디아" to "🇰🇭",
+"카메룬" to "🇨🇲",
+"캐나다" to "🇨🇦",
+"카보베르데" to "🇨🇻",
+"케이맨 제도" to "🇰🇾",
+"중앙아프리카공화국" to "🇨🇫",
+"차드" to "🇹🇩",
+"칠레" to "🇨🇱",
+"중국" to "🇨🇳",
+"크리스마스 섬" to "🇨🇽",
+"코코스 제도" to "🇨🇨",
+"콜롬비아" to "🇨🇴",
+"코모로" to "🇰🇲",
+"콩고공화국" to "🇨🇬",
+"콩고민주공화국" to "🇨🇩",
+"쿡 제도" to "🇨🇰",
+"코스타리카" to "🇨🇷",
+"코트디부아르" to "🇨🇮",
+"크로아티아" to "🇭🇷",
+"쿠바" to "🇨🇺",
+"퀴라소" to "🇨🇼",
+"키프로스" to "🇨🇾",
+"체코" to "🇨🇿",
+
+"덴마크" to "🇩🇰",
+"지부티" to "🇩🇯",
+"도미니카 연방" to "🇩🇲",
+"도미니카 공화국" to "🇩🇴",
+
+"에콰도르" to "🇪🇨",
+"이집트" to "🇪🇬",
+"엘살바도르" to "🇸🇻",
+"적도기니" to "🇬🇶",
+"에리트레아" to "🇪🇷",
+"에스토니아" to "🇪🇪",
+"에스와티니" to "🇸🇿",
+"에티오피아" to "🇪🇹",
+
+"포클랜드 제도" to "🇫🇰",
+"페로 제도" to "🇫🇴",
+"피지" to "🇫🇯",
+"핀란드" to "🇫🇮",
+"프랑스" to "🇫🇷",
+"프랑스령 기아나" to "🇬🇫",
+"프랑스령 폴리네시아" to "🇵🇫",
+"프랑스 남부와 남극 지역" to "🇹🇫",
+
+"가봉" to "🇬🇦",
+"감비아" to "🇬🇲",
+"조지아" to "🇬🇪",
+"독일" to "🇩🇪",
+"가나" to "🇬🇭",
+"지브롤터" to "🇬🇮",
+"그리스" to "🇬🇷",
+"그린란드" to "🇬🇱",
+"그레나다" to "🇬🇩",
+"과들루프" to "🇬🇵",
+"괌" to "🇬🇺",
+"과테말라" to "🇬🇹",
+"건지섬" to "🇬🇬",
+"기니" to "🇬🇳",
+"기니비사우" to "🇬🇼",
+"가이아나" to "🇬🇾",
+
+"아이티" to "🇭🇹",
+"허드 맥도널드 제도" to "🇭🇲",
+"바티칸 시국" to "🇻🇦",
+"온두라스" to "🇭🇳",
+"홍콩" to "🇭🇰",
+"헝가리" to "🇭🇺",
+
+"아이슬란드" to "🇮🇸",
+"인도" to "🇮🇳",
+"인도네시아" to "🇮🇩",
+"이란" to "🇮🇷",
+"이라크" to "🇮🇶",
+"아일랜드" to "🇮🇪",
+"맨섬" to "🇮🇲",
+"이스라엘" to "🇮🇱",
+"이탈리아" to "🇮🇹",
+
+"일본" to "🇯🇵",
+"대한민국" to "🇰🇷",
+"북한" to "🇰🇵",
+"대만" to "🇹🇼",
+
+"영국" to "🇬🇧",
+"미국" to "🇺🇸",
+"베트남" to "🇻🇳",
+"싱가포르" to "🇸🇬",
+"태국" to "🇹🇭",
+"필리핀" to "🇵🇭",
+"말레이시아" to "🇲🇾",
+"뉴질랜드" to "🇳🇿",
+"남아프리카공화국" to "🇿🇦",
+"짐바브웨" to "🇿🇼"
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RankingDetailScreen(
     selectedCountry: String? = null,
     onBack: () -> Unit = {},
+    onNavigateToReview: (String) -> Unit = {}, // 상품 리뷰 페이지로 이동
     rankingViewModel: RankingViewModel = viewModel(),
     placeViewModel: PlaceViewModel = viewModel()
 ) {
@@ -49,9 +188,17 @@ fun RankingDetailScreen(
     var showPlaceDialog by remember { mutableStateOf(false) }
     
     // 선택한 국가가 변경될 때마다 국가별 상품 랭킹 데이터 요청
+    // countryProducts에 전체 상품 데이터가 없을 때만 로드 
     LaunchedEffect(selectedCountry) {
-        selectedCountry?.let {
-            rankingViewModel.loadCountryProductRanking(it)
+        selectedCountry?.let { country ->
+            // ViewModel의 selectedCountry 설정
+            rankingViewModel.setSelectedCountry(country)
+            
+            val currentProducts = rankingUiState.countryProducts[country]
+            // 데이터가 없을 때만 로드
+            if (currentProducts == null || currentProducts.isEmpty()) {
+                rankingViewModel.loadCountryProductRanking(country)
+            }
         }
     }
     
@@ -143,12 +290,24 @@ fun RankingDetailScreen(
             
             // 선택된 국가/상점 이름 표시
             rankingUiState.selectedCountry?.let { country ->
-                Text(
-                    text = country,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 16.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 국기 이모티콘 표시 (매핑에 없으면 표시하지 않음)
+                    countryFlagMap[country]?.let { flag ->
+                        Text(
+                            text = flag,
+                            fontSize = 24.sp
+                        )
+                    }
+                    Text(
+                        text = country,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             } ?: rankingUiState.selectedPlaceName?.let { placeName ->
                 Text(
                     text = placeName,
@@ -211,7 +370,8 @@ fun RankingDetailScreen(
                         itemsIndexed(products) { index, product ->
                             ProductRankingDetailItem(
                                 product = product,
-                                rank = ranks[index]
+                                rank = ranks[index],
+                                onClick = { onNavigateToReview(product.productId) }
                             )
                         }
                     }
@@ -248,12 +408,14 @@ fun RankingDetailScreen(
 @Composable
 fun ProductRankingDetailItem(
     product: com.example.tripcart.ui.viewmodel.ProductRanking,
-    rank: Int
+    rank: Int,
+    onClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
@@ -263,8 +425,8 @@ fun ProductRankingDetailItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 순위 뱃지
@@ -297,14 +459,14 @@ fun ProductRankingDetailItem(
                                                   // 상품별로 첫번째 사진만 보여줌
                     contentDescription = product.productName,
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(60.dp)
                         .clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(60.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFFE0E0E0)),
                     contentAlignment = Alignment.Center
