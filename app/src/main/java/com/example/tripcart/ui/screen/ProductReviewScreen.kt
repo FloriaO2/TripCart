@@ -1,6 +1,7 @@
 package com.example.tripcart.ui.screen
 
 import android.net.Uri
+import android.widget.Space
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -8,6 +9,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -21,10 +24,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -51,7 +56,7 @@ fun ProductReviewScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     
-    var expandedImageUrl by remember { mutableStateOf<String?>(null) }
+    var expandedImageIndex by remember { mutableStateOf<Pair<Int, List<String>>?>(null) }
     
     // 상품 정보 및 리뷰 로드
     LaunchedEffect(productId) {
@@ -109,8 +114,11 @@ fun ProductReviewScreen(
                 item {
                     ProductInfoSection(
                         product = product,
-                        onImageClick = { imageUrl ->
-                            expandedImageUrl = imageUrl
+                        // imageIndex: 클릭한 이미지의 인덱스
+                        //             - 확대했을 때 바로 보여줄 사진의 index를 전달하는 역할
+                        // imageUrls: 전체 이미지 리스트
+                        onImageClick = { imageIndex ->
+                            expandedImageIndex = Pair(imageIndex, product.imageUrls)
                         }
                     )
                 }
@@ -128,6 +136,7 @@ fun ProductReviewScreen(
                     Button(
                         onClick = onNavigateToWriteReview,
                         modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = PrimaryAccent
                         )
@@ -175,24 +184,86 @@ fun ProductReviewScreen(
         }
         
         // 이미지 확대 다이얼로그
-        expandedImageUrl?.let { imageUrl ->
-            Dialog(onDismissRequest = { expandedImageUrl = null }) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.9f))
-                        .clickable { expandedImageUrl = null },
-                    contentAlignment = Alignment.Center
-                ) {
-                    AsyncImage(
-                        model = imageUrl,
-                        contentDescription = "확대된 이미지",
+        expandedImageIndex?.let { (initialIndex, images) ->
+            if (images.isNotEmpty()) {
+                val pagerState = rememberPagerState(
+                    initialPage = initialIndex,
+                    pageCount = { images.size }
+                )
+                
+                Dialog(onDismissRequest = { expandedImageIndex = null }) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                            .clickable { expandedImageUrl = null },
-                        contentScale = ContentScale.Fit
-                    )
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.9f))
+                            .clickable { expandedImageIndex = null }
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // 상단 바 (뒤로가기, 인덱스)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp, bottom = 8.dp, start = 16.dp, end = 16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 좌측 뒤로가기 버튼
+                                IconButton(
+                                    onClick = { expandedImageIndex = null },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.arrow_back),
+                                        contentDescription = "닫기",
+                                        modifier = Modifier.size(24.dp),
+                                        colorFilter = ColorFilter.tint(Color.White)
+                                    )
+                                }
+                                
+                                // 중앙 인덱스 표시
+                                Text(
+                                    text = "${pagerState.currentPage + 1} / ${images.size}",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                
+                                // 우측 빈 공간 (레이아웃 균형을 위해)
+                                Spacer(modifier = Modifier.size(40.dp))
+                            }
+                            
+                            // 이미지 슬라이더
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(bottom = 56.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                HorizontalPager(
+                                    state = pagerState,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { page ->
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        AsyncImage(
+                                            model = images[page],
+                                            contentDescription = "확대된 이미지",
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.95f)
+                                                .fillMaxHeight(0.9f),
+                                            contentScale = ContentScale.Fit
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -202,7 +273,7 @@ fun ProductReviewScreen(
 @Composable
 fun ProductInfoSection(
     product: com.example.tripcart.ui.viewmodel.SearchedProduct,
-    onImageClick: (String) -> Unit
+    onImageClick: (Int) -> Unit
 ) {
     val averageRating = if (product.reviewCount > 0) {
         product.totalScore / product.reviewCount
@@ -210,91 +281,177 @@ fun ProductInfoSection(
         0.0
     }
     
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        // 상품 이미지들
+        // 좌측: 상품 이미지
         if (product.imageUrls.isNotEmpty()) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(product.imageUrls) { imageUrl ->
-                    AsyncImage(
-                        model = imageUrl,
-                        contentDescription = "상품 사진",
+            if (product.imageUrls.size == 1) {
+                // 이미지가 하나일 때
+                AsyncImage(
+                    model = product.imageUrls[0],
+                    contentDescription = "상품 사진",
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onImageClick(0) },
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // 이미지가 여러 개일 때는 슬라이드 가능
+                val pagerState = rememberPagerState(pageCount = { product.imageUrls.size })
+                Box(modifier = Modifier.size(120.dp)) {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize()
+                    ) { page ->
+                        AsyncImage(
+                            model = product.imageUrls[page],
+                            contentDescription = "상품 사진",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onImageClick(page) },
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    
+                    // 페이지 인디케이터 (하단에 이미지 index 보여주는 점)
+                    Row(
                         modifier = Modifier
-                            .size(120.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onImageClick(imageUrl) },
-                        contentScale = ContentScale.Crop
-                    )
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        repeat(product.imageUrls.size) { index ->
+                            Box(
+                                modifier = Modifier
+                                    .size(
+                                        width = if (pagerState.currentPage == index) 8.dp else 6.dp,
+                                        height = 6.dp
+                                    )
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(
+                                        if (pagerState.currentPage == index)
+                                            Color.White
+                                        else
+                                            Color.White.copy(alpha = 0.5f)
+                                    )
+                            )
+                        }
+                    }
                 }
             }
         }
         
-        // 상품 이름
-        Text(
-            text = product.productName,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
-        )
-        
-        // 카테고리
-        Text(
-            text = product.category,
-            fontSize = 14.sp,
-            color = Color.Gray
-        )
-        
-        // 평균 별점 및 리뷰 수
-        val starColor = if (averageRating > 0) PrimaryBackground else Color.Gray
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // 우측: 상품 정보
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
         ) {
-            // 별 5개 표시
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                repeat(5) { index ->
-                    // 각 별이 끝나는 지점이 1.0, 2.0, 3.0, 4.0, 5.0
-                    val starValue = index + 1.0
-                    // 평균 별점이 0보다 크고,
-                    // 각 별이 시작하는 지점이 평균 별점보다 작으며,
-                    // 각 별이 끝나는 지점이 평균 별점보다 크면 반 별 처리
-                    val isHalfStar = averageRating > 0 && 
-                                   starValue - 1.0 < averageRating && 
-                                   averageRating < starValue
-                    
-                    val (icon, tint) = when {
-                        starValue <= averageRating -> Icons.Default.Star to starColor // 꽉 찬 별
-                        isHalfStar -> Icons.Default.StarHalf to starColor // 반 별
-                        else -> Icons.Default.Star to Color.Gray.copy(alpha = 0.3f) // 빈 별
+            // 상품 이름
+            Text(
+                text = product.productName,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 20.sp
+            )
+            
+            // 카테고리
+            Text(
+                text = product.category,
+                fontSize = 14.sp,
+                color = Color.Gray,
+                lineHeight = 14.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 평균 별점 및 리뷰 수
+            val starColor = if (averageRating > 0) PrimaryBackground else Color.Gray
+            Column{
+                // 별 5개 표시
+                Row{
+                    repeat(5) { index ->
+                        // 각 별이 끝나는 지점이 1.0, 2.0, 3.0, 4.0, 5.0
+                        val starValue = index + 1.0
+                        // 평균 별점이 0보다 크고,
+                        // 각 별이 시작하는 지점이 평균 별점보다 작으며,
+                        // 각 별이 끝나는 지점이 평균 별점보다 크면 반 별 처리
+                        val isHalfStar = averageRating > 0 && 
+                                       starValue - 1.0 < averageRating && 
+                                       averageRating < starValue
+                        
+                        val (icon, tint) = when {
+                            starValue <= averageRating -> Icons.Default.Star to starColor // 꽉 찬 별
+                            isHalfStar -> Icons.Default.StarHalf to starColor // 반 별
+                            else -> Icons.Default.Star to Color.Gray.copy(alpha = 0.3f) // 빈 별
+                        }
+                        
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = tint
+                        )
+                    }
+                }
+
+                // 평균 별점 텍스트 및 리뷰 수
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 평균 별점
+                    Row(
+                        // 별 5개 표시한 거랑 시작점 맞추기 위해 좌측 padding 추가
+                        modifier = Modifier.padding(start = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "평균 별점",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            lineHeight = 16.sp
+                        )
+                        Text(
+                            text = String.format("%.1f", averageRating),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryAccent
+                        )
                     }
                     
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = tint
+                    // 세로 구분선
+                    Text(
+                        text = "|",
+                        fontSize = 14.sp,
+                        color = Color.Gray.copy(alpha = 0.5f)
                     )
+                    
+                    // 리뷰 수
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "리뷰 개수",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            lineHeight = 16.sp
+                        )
+                        Text(
+                            text = "${product.reviewCount}",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryAccent
+                        )
+                    }
                 }
             }
-
-            // 평균 별점 텍스트
-            Text(
-                text = String.format("%.1f", averageRating),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = PrimaryAccent
-            )
-
-            // 리뷰 수
-            Text(
-                text = "(리뷰 ${product.reviewCount}개)",
-                fontSize = 14.sp,
-                color = Color.Gray
-            )
         }
     }
 }
@@ -387,6 +544,7 @@ fun ReviewItem(
                     text = review.content,
                     fontSize = 14.sp,
                     maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
