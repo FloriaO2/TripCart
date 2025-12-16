@@ -33,7 +33,10 @@ import coil.compose.AsyncImage
 import com.example.tripcart.R
 import com.example.tripcart.ui.theme.PrimaryAccent
 import com.example.tripcart.ui.theme.PrimaryBackground
+import com.example.tripcart.ui.theme.ReviewBackground
+import com.example.tripcart.ui.theme.SecondaryBackground
 import com.example.tripcart.ui.viewmodel.ProductViewModel
+import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -249,14 +252,6 @@ fun ProductInfoSection(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // 평균 별점 텍스트
-            Text(
-                text = String.format("%.1f", averageRating),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = PrimaryAccent
-            )
-            
             // 별 5개 표시
             Row(
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -285,7 +280,15 @@ fun ProductInfoSection(
                     )
                 }
             }
-            
+
+            // 평균 별점 텍스트
+            Text(
+                text = String.format("%.1f", averageRating),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = PrimaryAccent
+            )
+
             // 리뷰 수
             Text(
                 text = "(리뷰 ${product.reviewCount}개)",
@@ -302,6 +305,10 @@ fun ReviewItem(
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     
+    // 현재 사용자 ID 가져오기
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+    val isMyReview = currentUserId != null && currentUserId == review.userId
+    
     val dateFormat = SimpleDateFormat("yyyy.MM.dd", Locale.getDefault())
     val dateString = dateFormat.format(review.createdAt.toDate())
     
@@ -311,7 +318,7 @@ fun ReviewItem(
             .clickable { isExpanded = !isExpanded },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = if (isMyReview) ReviewBackground else Color.White
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {

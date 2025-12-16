@@ -465,7 +465,7 @@ fun ProductItem(
                     
                     // 전체 리뷰 보러가기 텍스트 버튼
                     Text(
-                        text = "전체 리뷰 보러가기",
+                        text = "all reviews",
                         fontSize = 12.sp,
                         color = PrimaryAccent,
                         modifier = Modifier.clickable { onReviewClick() }

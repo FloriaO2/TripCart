@@ -16,5 +16,6 @@ val SecondaryBackground = Color(0xFFFFE3A8)
 val TertiaryBackground = Color(0xFFFFF2E2)
 
 val TagBackground = Color(0xFFE0E7FF)
+val ReviewBackground = Color(0xFFEEF4FD)
 
 val BoxBackground = Color(0xFFE7D8C9)
