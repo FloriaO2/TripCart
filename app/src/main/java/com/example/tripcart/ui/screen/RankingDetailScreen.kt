@@ -8,12 +8,15 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
@@ -26,9 +29,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.tripcart.R
@@ -38,6 +44,9 @@ import com.example.tripcart.ui.viewmodel.PlaceViewModel
 import com.example.tripcart.ui.viewmodel.ProductViewModel
 import com.example.tripcart.ui.viewmodel.RankingViewModel
 import com.google.firebase.auth.FirebaseAuth
+import android.content.Context
+import android.content.SharedPreferences
+import com.example.tripcart.ui.theme.TagBackground
 
 // 국가 이름과 국기 이모티콘 매핑
 private val countryFlagMap = mapOf(
@@ -177,7 +186,91 @@ private val countryFlagMap = mapOf(
 "짐바브웨" to "🇿🇼"
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+// 최근 검색어 데이터 클래스
+data class RecentSearch(
+    val type: String, // "country" or "place"
+    val displayName: String, // 국가 이름 or 상점 이름
+    val placeId: String? = null // 상점인 경우 placeId
+)
+
+// 최근 검색어 관리 함수들
+// SharedPreferences - key-value 형태로 저장하는 로컬 경량 DB
+//                     최근 검색어처럼 간단한 거는 Room DB 연결보다 이걸 쓰는게 나음!
+private const val PREFS_NAME = "ranking_search_history" // SharedPreferences 구분용 별칭
+private const val KEY_RECENT_SEARCHES = "recent_searches" // 최근 검색어 키
+private const val MAX_RECENT_SEARCHES = 10 // 최근 검색어 최대 개수
+private const val SEPARATOR = "|||" // 최근 검색어 구분자
+
+private fun getRecentSearches(context: Context): List<RecentSearch> {
+    // Context.MODE_PRIVATE - 앱 내부에서만 접근 가능
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val searchesString = prefs.getString(KEY_RECENT_SEARCHES, "") ?: ""
+    return if (searchesString.isEmpty()) {
+        emptyList()
+    } else {
+        searchesString.split(SEPARATOR).filter { it.isNotEmpty() }.mapNotNull { item ->
+            val parts = item.split(":") // country:국가이름, place:1234:상점이름 이런 식으로 저장돼있음
+            when (parts.size) {
+                2 -> if (parts[0] == "country") RecentSearch("country", parts[1]) else null
+                3 -> if (parts[0] == "place") RecentSearch("place", parts[2], parts[1]) else null
+                else -> null
+            }
+        }
+    }
+}
+
+private fun addRecentSearch(context: Context, search: RecentSearch) {
+    // Context.MODE_PRIVATE - 앱 내부에서만 접근 가능
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    // 기존 검색어 목록 가져오기
+    val currentSearches = getRecentSearches(context).toMutableList()
+    
+    // 이미 존재하면 제거 (중복 방지)
+    currentSearches.removeAll { it.type == search.type && it.displayName == search.displayName && it.placeId == search.placeId }
+    // 맨 앞에 추가
+    currentSearches.add(0, search)
+    // 최대 개수 제한
+    if (currentSearches.size > MAX_RECENT_SEARCHES) {
+        currentSearches.removeAt(currentSearches.size - 1)
+    }
+    
+    // 직렬화 - 기존 형식에 맞춰 텍스트 변환
+    val serialized = currentSearches.joinToString(SEPARATOR) { searchItem ->
+        when (searchItem.type) {
+            "country" -> "country:${searchItem.displayName}"
+            "place" -> "place:${searchItem.placeId}:${searchItem.displayName}"
+            else -> ""
+        }
+    }
+    prefs.edit().putString(KEY_RECENT_SEARCHES, serialized).apply()
+}
+
+private fun removeRecentSearch(context: Context, search: RecentSearch) {
+    // Context.MODE_PRIVATE - 앱 내부에서만 접근 가능
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    // 기존 검색어 목록 가져오기
+    val currentSearches = getRecentSearches(context).toMutableList()
+    currentSearches.removeAll { it.type == search.type && it.displayName == search.displayName && it.placeId == search.placeId }
+    
+    // 직렬화 - 기존 형식에 맞춰 텍스트 변환
+    val serialized = currentSearches.joinToString(SEPARATOR) { searchItem ->
+        when (searchItem.type) {
+            "country" -> "country:${searchItem.displayName}"
+            "place" -> "place:${searchItem.placeId}:${searchItem.displayName}"
+            else -> ""
+        }
+    }
+    prefs.edit().putString(KEY_RECENT_SEARCHES, serialized).apply()
+}
+
+private fun clearRecentSearches(context: Context) {
+    // Context.MODE_PRIVATE - 앱 내부에서만 접근 가능
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    // 최근 검색어 목록 초기화
+    prefs.edit().putString(KEY_RECENT_SEARCHES, "").apply()
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun RankingDetailScreen(
     selectedCountry: String? = null,
@@ -191,9 +284,11 @@ fun RankingDetailScreen(
     val rankingUiState by rankingViewModel.uiState.collectAsState()
     val placeUiState by placeViewModel.uiState.collectAsState()
     val productUiState by productViewModel.uiState.collectAsState()
+    val context = LocalContext.current
     
     var showCountryDialog by remember { mutableStateOf(false) }
     var showPlaceDialog by remember { mutableStateOf(false) }
+    var recentSearches by remember { mutableStateOf(getRecentSearches(context)) }
     
     // favorite 목록 로드
     LaunchedEffect(Unit) {
@@ -304,6 +399,71 @@ fun RankingDetailScreen(
                 }
             }
             
+            // 최근 검색어 표시
+            if (rankingUiState.selectedCountry == null && rankingUiState.selectedPlaceName == null && recentSearches.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = 5.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "최근 검색어",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 16.sp
+                        )
+                        Text(
+                            text = "전체 삭제",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            lineHeight = 12.sp,
+                            modifier = Modifier.clickable {
+                                clearRecentSearches(context)
+                                recentSearches = emptyList()
+                            }
+                        )
+                    }
+
+                    // FlowRow - 하위 요소들 가로 너비에 맞게 자동 배치
+                    FlowRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        recentSearches.forEach { search ->
+                            RecentSearchTag(
+                                text = search.displayName,
+                                onRemove = {
+                                    removeRecentSearch(context, search)
+                                    recentSearches = getRecentSearches(context)
+                                },
+                                onClick = {
+                                    when (search.type) {
+                                        "country" -> {
+                                            rankingViewModel.setSelectedCountry(search.displayName)
+                                            rankingViewModel.loadCountryProductRanking(search.displayName)
+                                        }
+                                        "place" -> {
+                                            search.placeId?.let { placeId ->
+                                                rankingViewModel.loadPlaceProductRanking(placeId, search.displayName)
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            
             // 선택된 국가/상점 이름 표시
             rankingUiState.selectedCountry?.let { country ->
                 Row(
@@ -311,6 +471,18 @@ fun RankingDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 국가 아이콘
+                    Image(
+                        painter = painterResource(id = R.drawable.country),
+                        contentDescription = "국가",
+                        modifier = Modifier.size(25.dp)
+                    )
+                    // 현재 검색어
+                    Text(
+                        text = "현재 검색어 ",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
                     // 국기 이모티콘 표시 (매핑에 없으면 표시하지 않음)
                     countryFlagMap[country]?.let { flag ->
                         Text(
@@ -321,16 +493,63 @@ fun RankingDetailScreen(
                     Text(
                         text = country,
                         fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    // X 아이콘 버튼
+                    IconButton(
+                        onClick = { rankingViewModel.clearSelection() },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "선택 해제",
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.Gray
+                        )
+                    }
                 }
             } ?: rankingUiState.selectedPlaceName?.let { placeName ->
-                Text(
-                    text = placeName,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 16.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 상점 아이콘
+                    Image(
+                        painter = painterResource(id = R.drawable.store),
+                        contentDescription = "상점",
+                        modifier = Modifier.size(25.dp)
+                    )
+                    // 현재 검색어
+                    Text(
+                        text = "현재 검색어 ",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                    Text(
+                        text = placeName,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    // X 아이콘 버튼
+                    IconButton(
+                        onClick = { rankingViewModel.clearSelection() },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "선택 해제",
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.Gray
+                        )
+                    }
+                }
             }
             
             // 상품 랭킹 리스트
@@ -349,7 +568,24 @@ fun RankingDetailScreen(
                     rankingUiState.countryProducts[country] ?: emptyList()
                 } ?: rankingUiState.placeProducts
                 
-                if (products.isEmpty()) {
+                // 선택된 국가나 상점이 없을 때
+                val isSearching = rankingUiState.selectedCountry != null || rankingUiState.selectedPlaceName != null
+                
+                if (!isSearching) { // 검색 하기 전 기본 문구
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "상단 버튼을 눌러\n원하는 국가 및 상점을 입력해주세요.",
+                            color = Color.Gray,
+                            fontSize = 16.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else if (products.isEmpty()) { // 검색을 했는데 검색 결과가 없을 경우
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -404,6 +640,8 @@ fun RankingDetailScreen(
         CountrySelectionDialog(
             onDismiss = { showCountryDialog = false },
             onCountrySelected = { country ->
+                addRecentSearch(context, RecentSearch("country", country))
+                recentSearches = getRecentSearches(context)
                 rankingViewModel.loadCountryProductRanking(country)
                 showCountryDialog = false
             },
@@ -416,6 +654,8 @@ fun RankingDetailScreen(
         PlaceSearchDialog(
             onDismiss = { showPlaceDialog = false },
             onPlaceSelected = { placeId, placeName ->
+                addRecentSearch(context, RecentSearch("place", placeName, placeId))
+                recentSearches = getRecentSearches(context)
                 rankingViewModel.loadPlaceProductRanking(placeId, placeName)
                 showPlaceDialog = false
             },
@@ -509,12 +749,13 @@ fun ProductRankingDetailItem(
                     text = product.productName,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    lineHeight = 16.sp
                 )
                 Text(
                     text = product.category,
                     fontSize = 14.sp,
-                    color = Color.Gray
+                    color = Color.Gray,
+                    lineHeight = 14.sp
                 )
             }
             
@@ -759,6 +1000,44 @@ fun PlaceSearchDialog(
         uiState.selectedPlace?.let { placeDetails ->
             onPlaceSelected(placeDetails.placeId, placeDetails.name)
             placeViewModel.clearSelectedPlace()
+        }
+    }
+}
+
+@Composable
+fun RecentSearchTag(
+    text: String,
+    onRemove: () -> Unit,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
+        color = TagBackground,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = text,
+                fontSize = 14.sp,
+                color = Color.Black
+            )
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "제거",
+                    modifier = Modifier.size(16.dp),
+                    tint = Color.Black
+                )
+            }
         }
     }
 }

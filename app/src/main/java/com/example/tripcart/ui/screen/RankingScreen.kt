@@ -293,15 +293,6 @@ fun RankingScreen(
                     }
                 }
             }
-            
-            // TOP3 제목
-            Text(
-                text = "지금 가장 많이 찾는 여행지 TOP3!",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 16.dp)
-            )
-            
             // 로딩 상태
             if (uiState.isLoading) {
                 Box(
@@ -313,6 +304,14 @@ fun RankingScreen(
                     CircularProgressIndicator()
                 }
             } else {
+                // TOP3 제목
+                Text(
+                    text = "지금 가장 많이 찾는 여행지 TOP3!",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 16.dp)
+                )
+
                 // 국가별 박스들
                 LazyColumn(
                     modifier = Modifier.weight(1f),

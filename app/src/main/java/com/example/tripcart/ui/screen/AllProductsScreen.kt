@@ -365,7 +365,8 @@ fun ProductItem(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onReviewClick), // 전체 카드 클릭시 리뷰 페이지로 이동
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
@@ -463,12 +464,11 @@ fun ProductItem(
                         )
                     }
                     
-                    // 전체 리뷰 보러가기 텍스트 버튼
+                    // 전체 리뷰 보러가기 텍스트
                     Text(
                         text = "all reviews",
                         fontSize = 12.sp,
-                        color = PrimaryAccent,
-                        modifier = Modifier.clickable { onReviewClick() }
+                        color = PrimaryAccent
                     )
                 }
                 
