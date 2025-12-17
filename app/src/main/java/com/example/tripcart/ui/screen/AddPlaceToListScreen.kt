@@ -50,6 +50,12 @@ fun AddPlaceToListScreen(
     var isProcessing by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     
+    // 화면 진입 시 선택 상태 초기화
+    // - 상품 추가와 상점 추가를 왔다갔다할 때 리스트 선택 상태가 공유되는 것을 방지
+    LaunchedEffect(Unit) {
+        listViewModel.clearAllSelections()
+    }
+    
     Scaffold(
         containerColor = Color.White,
         topBar = {
@@ -253,56 +259,38 @@ fun AddPlaceToListScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
+                    // read 권한 리스트 필터링 (read 권한 리스트는 표시하지 않음)
+                    val filteredLists = uiState.lists.filter { listItem ->
+                        !(listItem.isFromFirestore && listItem.userRole == "read")
+                    }
                     
-                    // 리스트를 3개 그룹으로 분류
-                    val selectableLists = uiState.lists.filter { listItem ->
+                    // 아래 순서대로 리스트 정렬:
+                    // 1. 이미 해당 장소가 목록에 들어가있는 리스트
+                    // 2. 장소와 상품이 하나도 없는 새 리스트
+                    // 3. 현재 선택한 장소를 추가할 수 있는 리스트
+                    // 4. 현재 선택한 장소를 아예 추가하지 못하는 리스트
+                    val sortedLists = filteredLists.sortedWith(compareBy<ListItemUiState> { listItem ->
+                        // 0 들어가있는게 우선 순위
+                        val isAlreadyInList = listItem.places.any { it.placeId == placeDetails.placeId }
+                        if (isAlreadyInList) 0 else 1 // 이미 들어있는 리스트가 먼저
+                    }.thenBy { listItem ->
+                        // 빈 리스트인지 확인
+                        val isEmpty = listItem.places.isEmpty() && listItem.productCount == 0
+                        if (isEmpty) 0 else 1 // 빈 리스트가 그 다음
+                    }.thenBy { listItem ->
+                        // 현재 선택한 장소를 추가할 수 있는지 확인
                         val isSelectable = when {
-                            listItem.country == null -> true
-                            listItem.country == placeDetails.country -> true
-                            else -> false
+                            listItem.country == null -> true // 비어있는 리스트
+                            listItem.country == placeDetails.country -> true // 같은 국가
+                            else -> false // 다른 국가
                         }
                         val isAlreadyInList = listItem.places.any { it.placeId == placeDetails.placeId }
-                        isSelectable && !isAlreadyInList
-                    }
+                        if (isSelectable && !isAlreadyInList) 0 else 1 // 추가 가능한 리스트가 그 다음
+                        // 모든 기준에서 후순위인 '현재 선택한 장소를 추가할 수 없는 리스트'는
+                        // 가장 마지막에 배치
+                    })
                     
-                    val alreadyInLists = uiState.lists.filter { listItem ->
-                        listItem.places.any { it.placeId == placeDetails.placeId }
-                    }
-                    
-                    val unselectableLists = uiState.lists.filter { listItem ->
-                        val isSelectable = when {
-                            listItem.country == null -> true
-                            listItem.country == placeDetails.country -> true
-                            else -> false
-                        }
-                        val isAlreadyInList = listItem.places.any { it.placeId == placeDetails.placeId }
-                        !isSelectable && !isAlreadyInList
-                    }
-                    
-                    // 이미 장소가 들어있는 리스트들 (맨 위)
-                    items(alreadyInLists) { listItem ->
-                        SelectableListItemCard(
-                            listItem = listItem,
-                            placeDetails = placeDetails,
-                            onToggleSelection = {
-                                listViewModel.toggleListSelection(listItem.listId)
-                            }
-                        )
-                    }
-                    
-                    // 선택 가능한 리스트들 (중간)
-                    items(selectableLists) { listItem ->
-                        SelectableListItemCard(
-                            listItem = listItem,
-                            placeDetails = placeDetails,
-                            onToggleSelection = {
-                                listViewModel.toggleListSelection(listItem.listId)
-                            }
-                        )
-                    }
-                    
-                    // 선택 불가능한 리스트들 (하단)
-                    items(unselectableLists) { listItem ->
+                    items(sortedLists) { listItem ->
                         SelectableListItemCard(
                             listItem = listItem,
                             placeDetails = placeDetails,

@@ -69,23 +69,10 @@ fun AddProductToListScreen(
     var isProcessing by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     
-    // 상품이 이미 들어있는 리스트 ID들을 추적
-    var productInListIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    
-    // 상품이 이미 리스트에 있는지 확인하여 자동 체크
-    LaunchedEffect(productDetails.id, uiState.lists) {
-        val existingListIds = mutableSetOf<String>()
-        uiState.lists.forEach { listItem ->
-            // 상품이 이미 리스트에 있는지 확인 (suspend 함수 사용)
-            val productExists = listViewModel.productExistsInListSuspend(productDetails.id, listItem.listId)
-            if (productExists) {
-                existingListIds.add(listItem.listId)
-                if (!listItem.isSelected) {
-                    listViewModel.selectList(listItem.listId)
-                }
-            }
-        }
-        productInListIds = existingListIds
+    // 화면 진입 시 선택 상태 초기화
+    // - 상점 추가와 상품 추가를 왔다갔다할 때 리스트 선택 상태가 공유되는 것을 방지
+    LaunchedEffect(Unit) {
+        listViewModel.clearAllSelections()
     }
     
     Scaffold(
@@ -464,30 +451,22 @@ fun AddProductToListScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
-                    // 상품이 이미 들어있는 리스트들 (상단, 강제 체크)
-                    val alreadyInLists = uiState.lists.filter { listItem ->
-                        productInListIds.contains(listItem.listId)
+                    // read 권한 리스트 필터링 (read 권한 리스트는 표시하지 않음)
+                    val filteredLists = uiState.lists.filter { listItem ->
+                        !(listItem.isFromFirestore && listItem.userRole == "read")
                     }
                     
-                    // 선택 가능한 리스트들 (하단)
-                    val selectableLists = uiState.lists.filter { listItem ->
-                        !productInListIds.contains(listItem.listId)
-                    }
+                    // 아래 순서대로 리스트 정렬:
+                    // 1. 장소와 상품이 하나도 없는 새 리스트
+                    // 2. 그 외 모든 리스트
+                    val sortedLists = filteredLists.sortedWith(compareBy<ListItemUiState> { listItem ->
+                        // 빈 리스트인지 확인
+                        val isEmpty = listItem.places.isEmpty() && listItem.productCount == 0
+                        if (isEmpty) 0 else 1 // 빈 리스트가 먼저
+                        // 후순위인 '그 외 모든 리스트'는 가장 마지막에 배치
+                    })
                     
-                    // 이미 상품이 들어있는 리스트들 (상단)
-                    items(alreadyInLists) { listItem ->
-                        SelectableListItemCardForProduct(
-                            listItem = listItem,
-                            productDetails = productDetails,
-                            isForcedChecked = true,
-                            onToggleSelection = {
-                                // 강제 체크된 리스트는 해제 불가
-                            }
-                        )
-                    }
-                    
-                    // 선택 가능한 리스트들 (하단)
-                    items(selectableLists) { listItem ->
+                    items(sortedLists) { listItem ->
                         SelectableListItemCardForProduct(
                             listItem = listItem,
                             productDetails = productDetails,

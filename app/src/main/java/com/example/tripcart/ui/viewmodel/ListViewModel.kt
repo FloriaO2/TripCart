@@ -33,7 +33,8 @@ data class ListItemUiState(
     val places: List<Place>,  // Place 객체 리스트 (name, placeId 연결)
     val productCount: Int,
     val isSelected: Boolean = false,
-    val isFromFirestore: Boolean = false // Firestore에서 온 리스트인지 구분
+    val isFromFirestore: Boolean = false, // Firestore에서 온 리스트인지 구분
+    val userRole: String? = null // 현재 사용자의 권한 ("owner", "edit", "read", null=개인 리스트)
 )
 
 data class ListUiState(
@@ -81,6 +82,12 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     // 로컬 DB와 Firestore에서 리스트 로드
     fun loadLists() {
         viewModelScope.launch {
+            // 현재 선택된 리스트 ID들을 저장 (선택 상태 보존)
+            val selectedListIds = _uiState.value.lists
+                .filter { it.isSelected }
+                .map { it.listId }
+                .toSet()
+            
             _uiState.value = _uiState.value.copy(isLoading = true)
             
             // Room DB와 Firestore에서 리스트 병합하여 가져오기
@@ -113,8 +120,9 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     async {
                         var productCount = list.productCount
                         var places = list.places
+                        var userRole: String? = null // 권한 정보 (Firestore 리스트인 경우 아래에서 불러옴)
                         
-                        // Firestore 리스트인 경우 productCount 필드를 사용
+                        // Firestore 리스트인 경우 productCount 필드를 사용하고 권한 정보도 가져오기
                         if (isFromFirestore) {
                             try {
                                 val listDoc = db.collection("lists").document(list.listId).get().await()
@@ -166,6 +174,25 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                                             else -> null
                                         }
                                     }
+                                    
+                                    // 권한 정보 가져오기
+                                    val userId = auth.currentUser?.uid
+                                    if (userId != null) {
+                                        val ownerId = listDoc.getString("ownerId")
+                                        val right = listDoc.getString("right") ?: "read"
+                                        
+                                        userRole = when {
+                                            ownerId == userId -> "owner"
+                                            else -> {
+                                                val sharedWith = (listDoc.get("sharedWith") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+                                                if (sharedWith.contains(userId)) {
+                                                    right
+                                                } else {
+                                                    null // 권한 없음
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             } catch (e: Exception) {
                                 // 오류 발생
@@ -179,7 +206,9 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                             country = list.country,
                             places = places,  // Place 객체 리스트 (name, placeId 연결)
                             productCount = productCount,
-                            isFromFirestore = isFromFirestore
+                            isFromFirestore = isFromFirestore,
+                            userRole = userRole,
+                            isSelected = selectedListIds.contains(list.listId) // 선택 상태 복원
                         )
                     }
                 }
@@ -502,6 +531,16 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
     
+    // 모든 리스트 선택 해제
+    // - 상품 추가와 상점 추가를 왔다갔다할 때 리스트 선택 상태가 공유되는 것을 방지
+    fun clearAllSelections() {
+        _uiState.value = _uiState.value.copy(
+            lists = _uiState.value.lists.map { list ->
+                list.copy(isSelected = false)
+            }
+        )
+    }
+    
     // 선택된 리스트들에 장소 추가
     suspend fun addPlaceToSelectedLists(placeDetails: PlaceDetails): Result<Unit> {
         return try {
@@ -710,66 +749,20 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         return try {
             val listId = UUID.randomUUID().toString()
             
-            // Firestore의 places 컬렉션에서 장소 정보 가져오기 (lat, lng, name)
-            val placeDoc = db.collection("places")
-                .document(placeDetails.placeId)
-                .get()
-                .await()
-            
-            if (!placeDoc.exists()) {
-                return Result.failure(Exception("장소 정보를 찾을 수 없습니다."))
-            }
-            
-            val placeData = placeDoc.data ?: return Result.failure(Exception("장소 정보가 없습니다."))
-            val lat = (placeData["latitude"] as? Double) ?: (placeData["lat"] as? Double) ?: 0.0
-            val lng = (placeData["longitude"] as? Double) ?: (placeData["lng"] as? Double) ?: 0.0
-            val placeName = placeData["name"] as? String ?: placeDetails.name
-            
-            // 로컬 DB에 리스트 생성
+            // 로컬 DB에 빈 리스트 생성
             val listEntity = ListEntity(
                 listId = listId,
                 name = listName,
                 status = "준비중",
-                country = placeDetails.country,
-                places = listOf(Place(name = placeDetails.name, placeId = placeDetails.placeId)),  // Place 객체로 저장
-                productCount = 0,  // 새 리스트는 상품 개수 0
+                country = null,
+                places = emptyList(),
+                productCount = 0,
                 firestoreSynced = false
             )
             listDao.insertList(listEntity)
             
-            // RoomDB의 places 테이블에 저장/업데이트
-            val existingPlace = placeDao.getPlaceById(placeDetails.placeId)
-            if (existingPlace != null) {
-                // 기존 장소가 있으면 listId 배열에 추가
-                val updatedListIds = if (listId !in existingPlace.listId) {
-                    existingPlace.listId + listId
-                } else {
-                    existingPlace.listId
-                }
-                placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
-            } else {
-                // 기존 장소가 없으면 새로 생성
-                val newPlace = PlaceEntity(
-                    placeId = placeDetails.placeId,
-                    lat = lat,
-                    lng = lng,
-                    name = placeName,
-                    listId = listOf(listId)
-                )
-                placeDao.insertPlace(newPlace)
-                // Geofence 등록
-                GeofenceManager.addGeofence(getApplication(), newPlace)
-            }
-            
-            // 리스트 목록 새로고침
+            // 리스트 목록 새로고침 (선택 상태는 자동으로 보존)
             loadLists()
-            
-            // 새로 생성한 리스트를 자동으로 선택 상태로 만들기
-            // loadLists()가 비동기로 실행되므로 약간의 지연 후 선택 상태 설정
-            viewModelScope.launch {
-                kotlinx.coroutines.delay(500) // 리스트 로드 완료 대기 (Flow collect 완료 대기)
-                selectList(listId)
-            }
             
             Result.success(listId)
         } catch (e: Exception) {
@@ -1405,47 +1398,20 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         return try {
             val listId = UUID.randomUUID().toString()
             
-            // 로컬 DB에 리스트 생성
+            // 로컬 DB에 빈 리스트 생성
             val listEntity = ListEntity(
                 listId = listId,
                 name = listName,
                 status = "준비중",
                 country = null, // 상품은 국가 제약 없음
                 places = emptyList(),
-                productCount = 0, // 상품 추가 전이므로 0으로 시작 (추가 성공 시 증가)
+                productCount = 0,
                 firestoreSynced = false
             )
             listDao.insertList(listEntity)
             
-            // 상품을 리스트에 추가
-            val productEntity = ListProductEntity(
-                id = productDetails.id,
-                listId = listId,
-                productId = productDetails.productId,  // null이면 사용자 생성 상품, 있으면 Firestore 공개 상품
-                productName = productDetails.productName,
-                category = productDetails.category,
-                imageUrls = productDetails.imageUrls,
-                quantity = productDetails.quantity,
-                note = productDetails.note,
-                bought = "구매전"
-            )
-            listProductDao.insertProduct(productEntity)
-            
-            // 리스트의 productCount 증가
-            val list = listDao.getListById(listId)
-            if (list != null) {
-                val updatedList = list.copy(productCount = list.productCount + 1)
-                listDao.updateList(updatedList)
-            }
-            
-            // 리스트 목록 새로고침 (비동기로 처리)
-            viewModelScope.launch {
-                loadLists()
-                
-                // 새로 생성한 리스트를 자동으로 선택 상태로 만들기
-                kotlinx.coroutines.delay(300)
-                selectList(listId)
-            }
+            // 리스트 목록 새로고침 (선택 상태는 자동으로 보존)
+            loadLists()
             
             Result.success(listId)
         } catch (e: Exception) {

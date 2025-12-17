@@ -795,6 +795,14 @@ fun ListDetailScreen(
                         }
                     } else {
                         items(products) { product ->
+                            // 현재 사용자의 권한 확인
+                            val currentUserRole = participantInfo?.currentUserRole
+                            val canEdit = when (currentUserRole) {
+                                "owner", "edit" -> true
+                                "read" -> false
+                                else -> true // 개인 리스트는 항상 편집 가능
+                            }
+                            
                             ProductCard(
                                 product = product,
                                 onStatusClick = { newStatus ->
@@ -810,7 +818,8 @@ fun ListDetailScreen(
                                     if (images.isNotEmpty()) {
                                         expandedImageIndex = Pair(imageIndex, images)
                                     }
-                                }
+                                },
+                                canEdit = canEdit
                             )
                         }
                     }
@@ -1349,7 +1358,8 @@ fun ProductCard(
     product: ListProductEntity,
     onStatusClick: (String) -> Unit,
     onEditClick: () -> Unit,
-    onImageClick: (Int) -> Unit
+    onImageClick: (Int) -> Unit,
+    canEdit: Boolean = true
 ) {
     val context = LocalContext.current
     val images = product.imageUrls ?: emptyList()
@@ -1553,16 +1563,18 @@ fun ProductCard(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // 우측 - 편집 버튼
-                IconButton(
-                    onClick = onEditClick,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "편집",
-                        tint = PrimaryAccent
-                    )
+                // 우측 - 편집 버튼 (편집 권한이 있을 때만 표시)
+                if (canEdit) {
+                    IconButton(
+                        onClick = onEditClick,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "편집",
+                            tint = PrimaryAccent
+                        )
+                    }
                 }
             }
             
