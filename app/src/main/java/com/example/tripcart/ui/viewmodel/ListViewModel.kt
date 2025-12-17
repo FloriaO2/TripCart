@@ -1311,20 +1311,81 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     // 리스트에서 상품 삭제
     suspend fun deleteProductFromList(productId: String, listId: String): Result<Unit> {
         return try {
-            // 상품이 리스트에 존재하는지 확인
+            // 먼저 Room DB에서 확인
             val exists = listProductDao.productExistsInList(productId, listId)
-            if (!exists) {
-                return Result.failure(Exception("상품이 리스트에 존재하지 않습니다."))
-            }
+            val firestoreProductId: String?
             
-            // 상품 삭제
-            listProductDao.deleteProductById(productId, listId)
-            
-            // 리스트의 productCount 감소
-            val list = listDao.getListById(listId)
-            if (list != null) {
-                val updatedList = list.copy(productCount = (list.productCount - 1).coerceAtLeast(0))
-                listDao.updateList(updatedList)
+            if (exists) {
+                // Room DB 상품인 경우
+                val roomProduct = listProductDao.getProductById(productId, listId)
+                firestoreProductId = roomProduct?.productId
+                
+                // 상품 삭제
+                listProductDao.deleteProductById(productId, listId)
+                
+                // 리스트의 productCount 감소
+                val list = listDao.getListById(listId)
+                if (list != null) {
+                    val updatedList = list.copy(productCount = (list.productCount - 1).coerceAtLeast(0))
+                    listDao.updateList(updatedList)
+                    
+                    // productId가 있으면 랭킹 데이터 업데이트
+                    firestoreProductId?.let { pid ->
+                        val country = list.country
+                        val placeIds = list.places.map { it.placeId }
+                        if (country != null && placeIds.isNotEmpty()) {
+                            updateProductStats(country, placeIds, pid, increment = false)
+                        }
+                    }
+                }
+            } else {
+                // Room DB에 없으면 Firestore에서 확인
+                val firestoreDoc = db.collection("lists")
+                    .document(listId)
+                    .collection("list_products")
+                    .document(productId)
+                    .get()
+                    .await()
+                
+                if (!firestoreDoc.exists()) {
+                    return Result.failure(Exception("상품이 리스트에 존재하지 않습니다."))
+                }
+                
+                // Firestore에서 productId 가져오기
+                firestoreProductId = firestoreDoc.getString("productId")
+                
+                // 상품 삭제
+                db.collection("lists")
+                    .document(listId)
+                    .collection("list_products")
+                    .document(productId)
+                    .delete()
+                    .await()
+                
+                // 리스트의 productCount 감소
+                val listDoc = db.collection("lists").document(listId).get().await()
+                if (listDoc.exists()) {
+                    val currentProductCount = (listDoc.getLong("productCount") ?: 0).toInt()
+                    db.collection("lists")
+                        .document(listId)
+                        .update("productCount", (currentProductCount - 1).coerceAtLeast(0))
+                        .await()
+                    
+                    // productId가 있으면 랭킹 데이터 업데이트
+                    firestoreProductId?.let { pid ->
+                        val country = listDoc.getString("country")
+                        val places = (listDoc.get("places") as? List<*>)?.mapNotNull { 
+                            when (it) {
+                                is Map<*, *> -> it["placeId"] as? String
+                                else -> null
+                            }
+                        } ?: emptyList()
+                        
+                        if (country != null && places.isNotEmpty()) {
+                            updateProductStats(country, places, pid, increment = false)
+                        }
+                    }
+                }
             }
             
             // 리스트 목록 새로고침
@@ -1479,6 +1540,71 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                         .collection("list_products")
                         .document(productId)
                         .update("bought", bought)
+                        .await()
+                    Result.success(Unit)
+                } else {
+                    Result.failure(Exception("상품을 찾을 수 없습니다."))
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    // 상품 정보 업데이트 (이름, 카테고리, 수량, 메모, 이미지)
+    suspend fun updateProductInfo(
+        productId: String,
+        listId: String,
+        productName: String,
+        category: String,
+        quantity: Int,
+        note: String?,
+        imageUrls: List<String>?
+    ): Result<Unit> {
+        return try {
+            // 먼저 Room DB에서 확인
+            val roomProduct = listProductDao.getProductById(productId, listId)
+            if (roomProduct != null) {
+                val updatedProduct = roomProduct.copy(
+                    productName = productName,
+                    category = category,
+                    quantity = quantity,
+                    note = note,
+                    imageUrls = imageUrls
+                )
+                listProductDao.updateProduct(updatedProduct)
+                Result.success(Unit)
+            } else {
+                // Room DB에 없으면 Firestore에서 업데이트
+                val firestoreDoc = db.collection("lists")
+                    .document(listId)
+                    .collection("list_products")
+                    .document(productId)
+                    .get()
+                    .await()
+                
+                if (firestoreDoc.exists()) {
+                    val updateData = hashMapOf<String, Any>(
+                        "productName" to productName,
+                        "category" to category,
+                        "quantity" to quantity
+                    )
+                    if (note != null && note.isNotBlank()) {
+                        updateData["note"] = note
+                    } else {
+                        updateData["note"] = ""
+                    }
+                    if (imageUrls != null && imageUrls.isNotEmpty()) {
+                        updateData["imageUrls"] = imageUrls
+                    } else {
+                        updateData["imageUrls"] = emptyList<String>()
+                    }
+                    
+                    db.collection("lists")
+                        .document(listId)
+                        .collection("list_products")
+                        .document(productId)
+                        .update(updateData)
                         .await()
                     Result.success(Unit)
                 } else {

@@ -3,6 +3,7 @@ package com.example.tripcart.navigation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -28,6 +29,7 @@ import com.example.tripcart.ui.screen.MyPageScreen
 import com.example.tripcart.ui.screen.AddPlaceScreen
 import com.example.tripcart.ui.screen.AddPlaceToListScreen
 import com.example.tripcart.ui.screen.AddProductToListScreen
+import com.example.tripcart.ui.screen.EditProductScreen
 import com.example.tripcart.ui.screen.RankingScreen
 import com.example.tripcart.ui.screen.RankingDetailScreen
 import com.example.tripcart.ui.screen.AllProductsScreen
@@ -43,6 +45,7 @@ import com.example.tripcart.ui.viewmodel.PlaceDetails
 import com.example.tripcart.ui.viewmodel.ListViewModel
 import com.example.tripcart.ui.viewmodel.RankingViewModel
 import com.example.tripcart.ui.viewmodel.NotificationViewModel
+import kotlinx.coroutines.flow.first
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -69,6 +72,9 @@ sealed class Screen(val route: String) {
     }
     object AddPlaceToList : Screen("add_place_to_list")
     object AddProductToList : Screen("add_product_to_list")
+    object EditProduct : Screen("edit_product/{productId}/{listId}") {
+        fun createRoute(productId: String, listId: String) = "edit_product/$productId/$listId"
+    }
     object AllProducts : Screen("all_products")
     object ProductReview : Screen("product_review/{productId}") {
         fun createRoute(productId: String) = "product_review/$productId"
@@ -308,7 +314,7 @@ fun TripCartNavGraph(
                     // TODO: 리스트 편집 화면으로 이동
                 },
                 onEditProduct = { productId, listId ->
-                    // TODO: 상품 편집 화면으로 이동
+                    navController.navigate(Screen.EditProduct.createRoute(productId, listId))
                 },
                 onGroupAddClick = {
                     // TODO: 그룹 추가 기능 구현
@@ -381,6 +387,69 @@ fun TripCartNavGraph(
                 },
                 viewModel = sharedProductViewModel
             )
+        }
+        
+        composable(
+            route = Screen.EditProduct.route,
+            arguments = listOf(
+                navArgument("productId") { type = NavType.StringType },
+                navArgument("listId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val productId = backStackEntry.arguments?.getString("productId") ?: ""
+            val listId = backStackEntry.arguments?.getString("listId") ?: ""
+            
+            // 리스트가 Firestore에 있는지 확인
+            var isFirestoreList by remember { mutableStateOf<Boolean?>(null) }
+            var product by remember { mutableStateOf<com.example.tripcart.data.local.entity.ListProductEntity?>(null) }
+            var isLoading by remember { mutableStateOf(true) }
+            
+            LaunchedEffect(listId, productId) {
+                // Firestore 리스트인지 확인
+                isFirestoreList = sharedListViewModel.hasInviteCode(listId)
+                
+                // 상품 정보 가져오기
+                val productsFlow = when (isFirestoreList) {
+                    true -> sharedListViewModel.getFirestoreProductsByListId(listId)
+                    false -> sharedListViewModel.getProductsByListId(listId)
+                    null -> return@LaunchedEffect
+                }
+                
+                val products = productsFlow.first()
+                product = products.find { it.id == productId }
+                isLoading = false
+            }
+            
+            if (isLoading || isFirestoreList == null) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                product?.let { productEntity ->
+                    EditProductScreen(
+                        product = productEntity,
+                        listId = listId,
+                        onBack = {
+                            navController.popBackStack()
+                        },
+                        onProductUpdated = {
+                            navController.popBackStack()
+                        },
+                        listViewModel = sharedListViewModel,
+                        productViewModel = sharedProductViewModel
+                    )
+                } ?: run {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("상품을 찾을 수 없습니다.")
+                    }
+                }
+            }
         }
         
         composable(Screen.AddProductToList.route) {
