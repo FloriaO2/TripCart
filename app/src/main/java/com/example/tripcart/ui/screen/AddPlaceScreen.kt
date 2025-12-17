@@ -25,6 +25,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.tripcart.R
@@ -46,6 +47,8 @@ fun AddPlaceScreen(
     viewModel: PlaceViewModel = viewModel()
 ) {
     val uiState = viewModel.uiState.collectAsState().value
+    // 키보드 컨트롤러 - 키보드 열고 닫을 때 사용하는 도구
+    val keyboardController = LocalSoftwareKeyboardController.current
     
     // 화면이 처음 표시될 때 선택된 장소 초기화
     LaunchedEffect(Unit) {
@@ -109,7 +112,7 @@ fun AddPlaceScreen(
                     },
                     singleLine = true
                 )
-                
+
                 // 검색 결과 리스트
                 // 로딩 상태 표시
                 if (uiState.isSearching) {
@@ -122,7 +125,7 @@ fun AddPlaceScreen(
                     ) {
                         CircularProgressIndicator()
                     }
-                // Error에 값이 있음 = 에러 발생
+                    // Error에 값이 있음 = 에러 발생
                 } else if (uiState.searchError != null) {
                     Box(
                         modifier = Modifier
@@ -136,8 +139,8 @@ fun AddPlaceScreen(
                             color = Color.Red
                         )
                     }
-                // 입력창에 아무것도 입력하지 않았거나 한 글자만 입력한 상태
-                // Places API는 최소 2글자 이상을 입력해야 검색 결과 받아옴
+                    // 입력창에 아무것도 입력하지 않았거나 한 글자만 입력한 상태
+                    // Places API는 최소 2글자 이상을 입력해야 검색 결과 받아옴
                 } else if (searchQuery.length < 2) {
                     Box(
                         modifier = Modifier
@@ -151,7 +154,7 @@ fun AddPlaceScreen(
                             color = Color.Gray
                         )
                     }
-                // 입력창에 2글자 이상을 입력했으나 검색 결과가 없는 상태
+                    // 입력창에 2글자 이상을 입력했으나 검색 결과가 없는 상태
                 } else if (uiState.predictions.isEmpty() && searchQuery.length >= 2) {
                     Box(
                         modifier = Modifier
@@ -165,7 +168,7 @@ fun AddPlaceScreen(
                             color = Color.Gray
                         )
                     }
-                // 검색 결과 존재
+                    // 검색 결과 존재
                 } else if (uiState.predictions.isNotEmpty()) {
                     LazyColumn(
                         modifier = Modifier
@@ -182,12 +185,14 @@ fun AddPlaceScreen(
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 4.dp)
                                     .clickable {
+                                        // 장소 클릭해서 상세 정보 팝업 열리면 자동으로 키보드 닫기
+                                        keyboardController?.hide()
                                         // 장소 선택 시 상세 정보 가져오기
                                         val placeId = prediction.placeId
                                         if (placeId.isNotEmpty()) {
                                             // Autocomplete에서 받은 주소 정보 전달 (상점 이름 제외, 주소만)
                                             val address = prediction.structuredFormatting?.secondaryText ?: ""
-                                            // Autocomplete에서 받은 장소 이름 전달
+                                            // Autocomplete에서 받은 상점 이름 전달
                                             val name = prediction.structuredFormatting?.mainText ?: ""
                                             viewModel.fetchPlaceDetails(placeId, address, name)
                                         }
@@ -232,7 +237,7 @@ fun AddPlaceScreen(
                     }
                 }
             }
-            
+
             // 로딩 상태 표시 (오버레이)
             if (uiState.isLoading) {
                 Box(
@@ -253,170 +258,191 @@ fun AddPlaceScreen(
                     }
                 }
             }
-            
+
             // 선택한 장소 상세 정보 표시 및 저장 (하단에 고정)
             uiState.selectedPlace?.let { placeDetails ->
-                Card(
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                        .border(
-                            width = 2.dp,
-                            color = Color(0x4F000000),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        .align(Alignment.BottomCenter),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color.White
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        .fillMaxSize()
                 ) {
-                    Column(
+                    // 반투명 배경 - 팝업 외부 클릭 시 팝업 닫기
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.2f))
+                            .clickable {
+                                viewModel.clearSelectedPlace()
+                            }
+                    )
+                    // Card를 별도의 Box로 감싸서 클릭 이벤트 연결
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .align(Alignment.BottomCenter)
+                            .clickable { }
                     ) {
-                        placeDetails.country?.let { country ->
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = PrimaryBackground,
-                                modifier = Modifier
-                                    .wrapContentWidth()
-                                    .align(Alignment.CenterHorizontally)
-                                    .padding(bottom = 20.dp)
-                                    .fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.country),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(24.dp)
-                                            .padding(end = 6.dp),
-                                        colorFilter = ColorFilter.tint(Color(0xFF333333))
-                                    )
-                                    Text(
-                                        text = country,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF333333)
-                                    )
-                                }
-                            }
-                        }
-
-                        // 상점 이미지 표시
-                        placeDetails.photoUrl?.let { url ->
-                            AsyncImage(
-                                model = url,
-                                contentDescription = placeDetails.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .padding(bottom = 12.dp)
-                            )
-                        } ?: run {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 12.dp)
-                                    .height(200.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFE0E0E0)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "이미지를 불러올 수 없습니다.",
-                                    color = Color.DarkGray
-                                )
-                            }
-                        }
-                        
-                        Text(
-                            text = placeDetails.name,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-
-                        
-                        placeDetails.address?.let {
-                            DetailRow(
-                                icon = Icons.Default.LocationOn,
-                                value = it
-                            )
-                        }
-                        if (placeDetails.phoneNumber != null && placeDetails.phoneNumber.isNotEmpty()) {
-                            DetailRow(
-                                icon = Icons.Default.Phone,
-                                value = placeDetails.phoneNumber
-                            )
-                        }
-                        if (placeDetails.websiteUri != null && placeDetails.websiteUri.isNotEmpty()) {
-                            DetailRowWithDrawable(
-                                iconRes = R.drawable.link,
-                                value = placeDetails.websiteUri
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // 선택/취소 버튼 가로 정렬
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                                .border(
+                                    width = 2.dp,
+                                    color = Color(0x4F000000),
+                                    shape = RoundedCornerShape(12.dp)
+                                ),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color.White
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                         ) {
-                            // 취소 버튼
-                            Button(
-                                onClick = {
-                                    viewModel.clearSelectedPlace()
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xA6D32F2F) // 붉은 계열
-                                )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
                             ) {
+                                placeDetails.country?.let { country ->
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = PrimaryBackground,
+                                        modifier = Modifier
+                                            .wrapContentWidth()
+                                            .align(Alignment.CenterHorizontally)
+                                            .padding(bottom = 20.dp)
+                                            .fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Image(
+                                                painter = painterResource(id = R.drawable.country),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(24.dp)
+                                                    .padding(end = 6.dp),
+                                                colorFilter = ColorFilter.tint(Color(0xFF333333))
+                                            )
+                                            Text(
+                                                text = country,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF333333)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // 상점 이미지 표시
+                                placeDetails.photoUrl?.let { url ->
+                                    AsyncImage(
+                                        model = url,
+                                        contentDescription = placeDetails.name,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .padding(bottom = 12.dp)
+                                    )
+                                } ?: run {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 12.dp)
+                                            .height(200.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color(0xFFE0E0E0)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "이미지를 불러올 수 없습니다.",
+                                            color = Color.DarkGray
+                                        )
+                                    }
+                                }
+
                                 Text(
-                                    "취소", 
-                                    color = Color.White,
+                                    text = placeDetails.name,
+                                    fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                            }
-                            
-                            // 선택 버튼
-                            Button(
-                                onClick = {
-                                    // 바로 리스트 선택 화면으로 이동 (이미지 로딩 완료 여부와 관계없이)
-                                    onPlaceSelected(placeDetails)
-                                    // 백그라운드에서 중복 체크 및 저장 처리
-                                    viewModel.checkPlaceAndNavigate(placeDetails) { shouldNavigate ->
-                                        // 이미 화면 이동했으므로 여기서는 아무것도 하지 않음
+                                Spacer(modifier = Modifier.height(8.dp))
+
+
+
+                                placeDetails.address?.let {
+                                    DetailRow(
+                                        icon = Icons.Default.LocationOn,
+                                        value = it
+                                    )
+                                }
+                                if (placeDetails.phoneNumber != null && placeDetails.phoneNumber.isNotEmpty()) {
+                                    DetailRow(
+                                        icon = Icons.Default.Phone,
+                                        value = placeDetails.phoneNumber
+                                    )
+                                }
+                                if (placeDetails.websiteUri != null && placeDetails.websiteUri.isNotEmpty()) {
+                                    DetailRowWithDrawable(
+                                        iconRes = R.drawable.link,
+                                        value = placeDetails.websiteUri
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // 선택/취소 버튼 가로 정렬
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // 취소 버튼
+                                    Button(
+                                        onClick = {
+                                            viewModel.clearSelectedPlace()
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xA6D32F2F) // 붉은 계열
+                                        )
+                                    ) {
+                                        Text(
+                                            "취소",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
-                                },
-                                modifier = Modifier.weight(1f),
-                                enabled = !uiState.isSaving,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xA6023694)
-                                )
-                            ) {
-                                if (uiState.isSaving) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        color = Color.White
-                                    )
-                                } else {
-                                    Text(
-                                        "선택",
-                                        fontWeight = FontWeight.Bold
-                                    )
+
+                                    // 선택 버튼
+                                    Button(
+                                        onClick = {
+                                            // 바로 리스트 선택 화면으로 이동 (이미지 로딩 완료 여부와 관계없이)
+                                            onPlaceSelected(placeDetails)
+                                            // 백그라운드에서 중복 체크 및 저장 처리
+                                            viewModel.checkPlaceAndNavigate(placeDetails) { shouldNavigate ->
+                                                // 이미 화면 이동했으므로 여기서는 아무것도 하지 않음
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = !uiState.isSaving,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xA6023694)
+                                        )
+                                    ) {
+                                        if (uiState.isSaving) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                color = Color.White
+                                            )
+                                        } else {
+                                            Text(
+                                                "선택",
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

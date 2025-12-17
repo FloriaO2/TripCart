@@ -30,12 +30,12 @@ fun FavoriteProductsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     
-    // favorite 목록 로드
+    // favorite 목록 로드 및 전체 상품 로드
     LaunchedEffect(Unit) {
         val user = FirebaseAuth.getInstance().currentUser
         if (user != null) {
             viewModel.loadFavorites()
-            viewModel.loadFavoriteProducts()
+            viewModel.loadAllProducts(showLoading = true)
         }
     }
     

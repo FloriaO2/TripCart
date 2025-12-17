@@ -142,6 +142,11 @@ fun AddProductScreen(
         }
     }
     
+    // 화면 진입 시 전체 상품 로드
+    LaunchedEffect(Unit) {
+        viewModel.loadAllProducts(showLoading = false)
+    }
+    
     // 상품 이름을 통해 검색 실행
     LaunchedEffect(searchQuery) {
         // 불러온 상품이면 검색 결과 팝업이 뜨지 않도록 !isFromFirestore 조건 추가
@@ -541,12 +546,12 @@ fun AddProductScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .background(TertiaryBackground, RoundedCornerShape(8.dp))
                             .border(
                                 width = 1.dp,
                                 color = SecondaryBackground,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .background(TertiaryBackground)
                             .padding(12.dp)
                     ) {
                         when {

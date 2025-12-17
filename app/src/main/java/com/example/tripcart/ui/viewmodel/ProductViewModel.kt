@@ -292,7 +292,13 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    // Firestore products 컬렉션에서 상품 검색
+    // 캐시된 allProducts에서 상품 검색 (부분 문자열 검색)
+    // 검색어가 상품명에 포함되어 있으면 모두 결과로 반환
+    // - Firestore products 컬렉션에서 직접 검색하면 접두사 검색만 지원하기 때문에
+    //   첫 글자로만 필터링이 가능함
+    //   -> 모든 위치의 글자로도 검색이 가능하도록
+    //      FavoriteProductsScreen과 AllProductsScreen에서 사용 중이던 allProducts을 사용
+    //      -> 세 화면에 각각 진입할 때마다 새로고침해서 allProducts 목록을 업데이트 하도록!
     fun searchProducts(keyword: String) {
         viewModelScope.launch {
             if (keyword.isBlank()) {
@@ -300,40 +306,26 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
             
-            try {
-                // productName 필드에서 키워드 검색
-                val query = db.collection("products")
-                    .whereGreaterThanOrEqualTo("productName", keyword)
-                    .whereLessThanOrEqualTo("productName", keyword + "\uf8ff") // \nf8ff가 뭘까 ..
-                    .limit(20) // 최대 20개 결과
-                
-                val snapshot = query.get().await()
-                val results = snapshot.documents.mapNotNull { doc ->
-                    val productName = doc.getString("productName") ?: return@mapNotNull null
-                    val category = doc.getString("category") ?: ""
-                    val imageUrls = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
-                    val totalScore = (doc.get("totalScore") as? Number)?.toDouble() ?: 0.0
-                    val reviewCount = (doc.get("reviewCount") as? Number)?.toInt() ?: 0
-                    
-                    SearchedProduct(
-                        productId = doc.id,
-                        productName = productName,
-                        category = category,
-                        imageUrls = imageUrls,
-                        totalScore = totalScore,
-                        reviewCount = reviewCount
-                    )
-                }
-                
-                _uiState.value = _uiState.value.copy(
-                    searchResults = results
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    searchResults = emptyList(),
-                    errorMessage = "상품 검색에 실패했습니다: ${e.message}"
-                )
+            // allProducts가 비어있으면 먼저 로드
+            if (_uiState.value.allProducts.isEmpty()) {
+                loadAllProducts(showLoading = false)
+                // loadAllProducts가 완료될 때까지 잠시 대기
+                kotlinx.coroutines.delay(100)
             }
+            
+            val keywordLower = keyword.lowercase() // 전체 소문자 버전
+            val allProducts = _uiState.value.allProducts
+            
+            // 상품명에 검색어가 포함되어 있는지 확인
+            val results = allProducts
+                .filter { 
+                    it.productName.lowercase().contains(keywordLower)
+                }
+                .take(20) // 최대 20개 결과만 반환
+            
+            _uiState.value = _uiState.value.copy(
+                searchResults = results
+            )
         }
     }
     

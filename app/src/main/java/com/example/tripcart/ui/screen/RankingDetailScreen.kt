@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.tripcart.R
@@ -876,6 +877,8 @@ fun PlaceSearchDialog(
     placeViewModel: PlaceViewModel
 ) {
     val uiState = placeViewModel.uiState.collectAsState().value
+    // 키보드 컨트롤러 - 키보드 열고 닫을 때 사용하는 도구
+    val keyboardController = LocalSoftwareKeyboardController.current
     var searchQuery by remember { mutableStateOf("") }
     
     // 검색어 변경 시 검색 실행
@@ -957,6 +960,8 @@ fun PlaceSearchDialog(
                                     .fillMaxWidth()
                                     .padding(vertical = 3.dp)
                                     .clickable {
+                                        // 장소 클릭해서 결과 페이지로 넘어가면 자동으로 키보드 닫기
+                                        keyboardController?.hide()
                                         val placeId = prediction.placeId
                                         if (placeId.isNotEmpty()) {
                                             val name = prediction.structuredFormatting?.mainText ?: ""

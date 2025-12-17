@@ -61,10 +61,9 @@ fun AllProductsScreen(
     var selectedCategories by remember { mutableStateOf<List<String>>(emptyList()) }
     var searchKeyword by remember { mutableStateOf<String?>(null) }
     
-    // 화면 진입 시 모든 상품 로드
+    // 화면 진입 시 전체 상품 로드
     LaunchedEffect(Unit) {
-        // 처음 진입 시에만 로딩
-        viewModel.loadAllProducts(showLoading = uiState.allProducts.isEmpty())
+        viewModel.loadAllProducts(showLoading = true)
     }
     
     // 필터링된 상품 목록
