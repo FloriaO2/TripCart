@@ -87,12 +87,9 @@ fun AddPlaceToListScreen(
                                     val result = listViewModel.addPlaceToSelectedLists(placeDetails)
                                     
                                     if (result.isSuccess) {
-                                        snackbarHostState.showSnackbar(
-                                            message = "장소가 추가되었습니다.",
-                                            duration = SnackbarDuration.Short
-                                        )
-                                        // 잠시 후 화면 닫기
-                                        kotlinx.coroutines.delay(1000)
+                                        // 성공 메시지를 ListViewModel에 설정 (ListScreen에서 표시)
+                                        listViewModel.setSuccessMessage("장소가 추가되었습니다.")
+                                        // 화면 닫기
                                         onComplete()
                                     } else {
                                         snackbarHostState.showSnackbar(
@@ -110,18 +107,11 @@ fun AddPlaceToListScreen(
                         // 리스트를 선택하지 않아도 완료 버튼을 누를 수 있도록 보완
                         enabled = !isProcessing
                     ) {
-                        if (isProcessing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = Color.White
-                            )
-                        } else {
-                            Text(
-                                "완료",
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryAccent
-                            )
-                        }
+                        Text(
+                            "완료",
+                            fontWeight = FontWeight.Bold,
+                            color = if (isProcessing) Color.Gray else PrimaryAccent
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -234,69 +224,96 @@ fun AddPlaceToListScreen(
                 thickness = 1.dp
             )
             
-            // 새 리스트 만들기 버튼
+            // 구분선 아래 영역
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                modifier = Modifier.weight(1f)
             ) {
-                NewListCard(
-                    onClick = {
-                        showCreateListDialog = true
-                    }
-                )
-            }
-            
-            // 리스트 목록
-            if (uiState.lists.isEmpty()) {
-                // 리스트가 없으면 빈 공간만 표시
-                Spacer(modifier = Modifier.weight(1f))
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                Column(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    // read 권한 리스트 필터링 (read 권한 리스트는 표시하지 않음)
-                    val filteredLists = uiState.lists.filter { listItem ->
-                        !(listItem.isFromFirestore && listItem.userRole == "read")
+                    // 새 리스트 만들기 버튼
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        NewListCard(
+                            onClick = {
+                                if (!isProcessing) {
+                                    showCreateListDialog = true
+                                }
+                            }
+                        )
                     }
                     
-                    // 아래 순서대로 리스트 정렬:
-                    // 1. 이미 해당 장소가 목록에 들어가있는 리스트
-                    // 2. 장소와 상품이 하나도 없는 새 리스트
-                    // 3. 현재 선택한 장소를 추가할 수 있는 리스트
-                    // 4. 현재 선택한 장소를 아예 추가하지 못하는 리스트
-                    val sortedLists = filteredLists.sortedWith(compareBy<ListItemUiState> { listItem ->
-                        // 0 들어가있는게 우선 순위
-                        val isAlreadyInList = listItem.places.any { it.placeId == placeDetails.placeId }
-                        if (isAlreadyInList) 0 else 1 // 이미 들어있는 리스트가 먼저
-                    }.thenBy { listItem ->
-                        // 빈 리스트인지 확인
-                        val isEmpty = listItem.places.isEmpty() && listItem.productCount == 0
-                        if (isEmpty) 0 else 1 // 빈 리스트가 그 다음
-                    }.thenBy { listItem ->
-                        // 현재 선택한 장소를 추가할 수 있는지 확인
-                        val isSelectable = when {
-                            listItem.country == null -> true // 비어있는 리스트
-                            listItem.country == placeDetails.country -> true // 같은 국가
-                            else -> false // 다른 국가
-                        }
-                        val isAlreadyInList = listItem.places.any { it.placeId == placeDetails.placeId }
-                        if (isSelectable && !isAlreadyInList) 0 else 1 // 추가 가능한 리스트가 그 다음
-                        // 모든 기준에서 후순위인 '현재 선택한 장소를 추가할 수 없는 리스트'는
-                        // 가장 마지막에 배치
-                    })
-                    
-                    items(sortedLists) { listItem ->
-                        SelectableListItemCard(
-                            listItem = listItem,
-                            placeDetails = placeDetails,
-                            onToggleSelection = {
-                                listViewModel.toggleListSelection(listItem.listId)
+                    // 리스트 목록
+                    if (uiState.lists.isEmpty()) {
+                        // 리스트가 없으면 빈 공간만 표시
+                        Spacer(modifier = Modifier.weight(1f))
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(1.dp)
+                        ) {
+                            // read 권한 리스트 필터링 (read 권한 리스트는 표시하지 않음)
+                            val filteredLists = uiState.lists.filter { listItem ->
+                                !(listItem.isFromFirestore && listItem.userRole == "read")
                             }
+                            
+                            // 아래 순서대로 리스트 정렬:
+                            // 1. 이미 해당 장소가 목록에 들어가있는 리스트
+                            // 2. 장소와 상품이 하나도 없는 새 리스트
+                            // 3. 현재 선택한 장소를 추가할 수 있는 리스트
+                            // 4. 현재 선택한 장소를 아예 추가하지 못하는 리스트
+                            val sortedLists = filteredLists.sortedWith(compareBy<ListItemUiState> { listItem ->
+                                // 0 들어가있는게 우선 순위
+                                val isAlreadyInList = listItem.places.any { it.placeId == placeDetails.placeId }
+                                if (isAlreadyInList) 0 else 1 // 이미 들어있는 리스트가 먼저
+                            }.thenBy { listItem ->
+                                // 빈 리스트인지 확인
+                                val isEmpty = listItem.places.isEmpty() && listItem.productCount == 0
+                                if (isEmpty) 0 else 1 // 빈 리스트가 그 다음
+                            }.thenBy { listItem ->
+                                // 현재 선택한 장소를 추가할 수 있는지 확인
+                                val isSelectable = when {
+                                    listItem.country == null -> true // 비어있는 리스트
+                                    listItem.country == placeDetails.country -> true // 같은 국가
+                                    else -> false // 다른 국가
+                                }
+                                val isAlreadyInList = listItem.places.any { it.placeId == placeDetails.placeId }
+                                if (isSelectable && !isAlreadyInList) 0 else 1 // 추가 가능한 리스트가 그 다음
+                                // 모든 기준에서 후순위인 '현재 선택한 장소를 추가할 수 없는 리스트'는
+                                // 가장 마지막에 배치
+                            })
+                            
+                            items(sortedLists) { listItem ->
+                                SelectableListItemCard(
+                                    listItem = listItem,
+                                    placeDetails = placeDetails,
+                                    onToggleSelection = {
+                                        if (!isProcessing) {
+                                            listViewModel.toggleListSelection(listItem.listId)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // 로딩 오버레이
+                if (isProcessing) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White.copy(alpha = 0.7f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = PrimaryAccent
                         )
                     }
                 }

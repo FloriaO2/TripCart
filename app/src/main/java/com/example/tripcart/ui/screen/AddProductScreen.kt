@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -362,7 +363,33 @@ fun AddProductScreen(
                             disabledTextColor = Color.Black,
                             disabledBorderColor = Color.Gray,
                             disabledPlaceholderColor = Color.Gray
-                        )
+                        ),
+                        trailingIcon = {
+                            if (isFromFirestore) {
+                                IconButton(
+                                    onClick = {
+                                        // 검색으로 불러온 상품 상태 완전 리셋
+                                        isFromFirestore = false
+                                        productName = ""
+                                        productMemo = ""
+                                        quantity = 1
+                                        productImages = emptyList()
+                                        selectedCategory = null
+                                        firestoreImageUrls = emptyList()
+                                        firestoreProductId = null
+                                        isPublic = false
+                                        searchQuery = ""
+                                        showSearchResults = false
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "입력 상태 리셋",
+                                        tint = PrimaryAccent
+                                    )
+                                }
+                            }
+                        }
                     )
                     
                     // 검색 결과 표시

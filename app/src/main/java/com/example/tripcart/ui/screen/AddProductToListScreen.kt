@@ -158,12 +158,9 @@ fun AddProductToListScreen(
                                     )
                                     
                                     if (result.isSuccess) {
-                                        snackbarHostState.showSnackbar(
-                                            message = "상품이 추가되었습니다.",
-                                            duration = SnackbarDuration.Short
-                                        )
-                                        // 잠시 후 화면 닫기
-                                        kotlinx.coroutines.delay(1000)
+                                        // 성공 메시지를 ListViewModel에 설정 (ListScreen에서 표시)
+                                        listViewModel.setSuccessMessage("상품이 추가되었습니다.")
+                                        // 화면 닫기
                                         onComplete()
                                     } else {
                                         snackbarHostState.showSnackbar(
@@ -181,18 +178,11 @@ fun AddProductToListScreen(
                         // 리스트를 선택하지 않아도 완료 버튼을 누를 수 있도록 보완
                         enabled = !isProcessing
                     ) {
-                        if (isProcessing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = Color.White
-                            )
-                        } else {
-                            Text(
-                                "완료",
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryAccent
-                            )
-                        }
+                        Text(
+                            "완료",
+                            fontWeight = FontWeight.Bold,
+                            color = if (isProcessing) Color.Gray else PrimaryAccent
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -427,53 +417,80 @@ fun AddProductToListScreen(
                 thickness = 1.dp
             )
             
-            // 새 리스트 만들기 버튼
+            // 구분선 아래 영역
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                modifier = Modifier.weight(1f)
             ) {
-                NewListCardForProduct(
-                    onClick = {
-                        showCreateListDialog = true
-                    }
-                )
-            }
-            
-            // 리스트 목록
-            if (uiState.lists.isEmpty()) {
-                Spacer(modifier = Modifier.weight(1f))
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                Column(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    // read 권한 리스트 필터링 (read 권한 리스트는 표시하지 않음)
-                    val filteredLists = uiState.lists.filter { listItem ->
-                        !(listItem.isFromFirestore && listItem.userRole == "read")
+                    // 새 리스트 만들기 버튼
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        NewListCardForProduct(
+                            onClick = {
+                                if (!isProcessing) {
+                                    showCreateListDialog = true
+                                }
+                            }
+                        )
                     }
                     
-                    // 아래 순서대로 리스트 정렬:
-                    // 1. 장소와 상품이 하나도 없는 새 리스트
-                    // 2. 그 외 모든 리스트
-                    val sortedLists = filteredLists.sortedWith(compareBy<ListItemUiState> { listItem ->
-                        // 빈 리스트인지 확인
-                        val isEmpty = listItem.places.isEmpty() && listItem.productCount == 0
-                        if (isEmpty) 0 else 1 // 빈 리스트가 먼저
-                        // 후순위인 '그 외 모든 리스트'는 가장 마지막에 배치
-                    })
-                    
-                    items(sortedLists) { listItem ->
-                        SelectableListItemCardForProduct(
-                            listItem = listItem,
-                            productDetails = productDetails,
-                            isForcedChecked = false,
-                            onToggleSelection = {
-                                listViewModel.toggleListSelection(listItem.listId)
+                    // 리스트 목록
+                    if (uiState.lists.isEmpty()) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(1.dp)
+                        ) {
+                            // read 권한 리스트 필터링 (read 권한 리스트는 표시하지 않음)
+                            val filteredLists = uiState.lists.filter { listItem ->
+                                !(listItem.isFromFirestore && listItem.userRole == "read")
                             }
+                            
+                            // 아래 순서대로 리스트 정렬:
+                            // 1. 장소와 상품이 하나도 없는 새 리스트
+                            // 2. 그 외 모든 리스트
+                            val sortedLists = filteredLists.sortedWith(compareBy<ListItemUiState> { listItem ->
+                                // 빈 리스트인지 확인
+                                val isEmpty = listItem.places.isEmpty() && listItem.productCount == 0
+                                if (isEmpty) 0 else 1 // 빈 리스트가 먼저
+                                // 후순위인 '그 외 모든 리스트'는 가장 마지막에 배치
+                            })
+                            
+                            items(sortedLists) { listItem ->
+                                SelectableListItemCardForProduct(
+                                    listItem = listItem,
+                                    productDetails = productDetails,
+                                    isForcedChecked = false,
+                                    onToggleSelection = {
+                                        if (!isProcessing) {
+                                            listViewModel.toggleListSelection(listItem.listId)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // 로딩 오버레이
+                if (isProcessing) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White.copy(alpha = 0.7f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = PrimaryAccent
                         )
                     }
                 }

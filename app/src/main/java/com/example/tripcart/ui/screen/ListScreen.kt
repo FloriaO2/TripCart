@@ -60,9 +60,11 @@ fun ListScreen(
     var showJoinDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
     
     Scaffold(
         containerColor = Color.White,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             AppTopBar(
                 title = "전체 리스트",
@@ -213,6 +215,17 @@ fun ListScreen(
                 LaunchedEffect(error) {
                     // TODO: Snackbar 표시
                     viewModel.clearError()
+                }
+            }
+            
+            // 성공 메시지 표시
+            uiState.successMessage?.let { message ->
+                LaunchedEffect(message) {
+                    snackbarHostState.showSnackbar(
+                        message = message,
+                        duration = SnackbarDuration.Short
+                    )
+                    viewModel.clearSuccessMessage()
                 }
             }
         }

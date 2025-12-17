@@ -40,7 +40,8 @@ data class ListItemUiState(
 data class ListUiState(
     val lists: List<ListItemUiState> = emptyList(),
     val isLoading: Boolean = true, // 초기 로딩 상태를 true로 설정하여 앱 시작 시 로딩 표시
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val successMessage: String? = null // 성공 메시지 (상품/장소 추가 완료 등)
 )
 
 class ListViewModel(application: Application) : AndroidViewModel(application) {
@@ -940,6 +941,16 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+    
+    // 성공 메시지 설정
+    fun setSuccessMessage(message: String) {
+        _uiState.value = _uiState.value.copy(successMessage = message)
+    }
+    
+    // 성공 메시지 초기화
+    fun clearSuccessMessage() {
+        _uiState.value = _uiState.value.copy(successMessage = null)
     }
     
     // 리스트 상세보기: Firestore에서 기본 정보를 가져오고, 현재 운영 상태만 API로 실시간 조회
