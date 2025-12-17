@@ -1145,6 +1145,151 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    // 리스트에서 장소 삭제
+    suspend fun removePlaceFromList(
+        listId: String,
+        placeId: String,
+        isFirestoreList: Boolean
+    ): Result<Unit> {
+        return try {
+            if (isFirestoreList) {
+                // Firestore 리스트인 경우
+                val listDoc = db.collection("lists").document(listId).get().await()
+                if (!listDoc.exists()) {
+                    return Result.failure(Exception("리스트를 찾을 수 없습니다."))
+                }
+                
+                val currentPlaces = (listDoc.get("places") as? List<*>) ?: emptyList<Any?>()
+                val currentCountry = listDoc.getString("country")
+                
+                // 삭제할 장소 찾기
+                val placeToRemove = currentPlaces.find { placeMap ->
+                    when (placeMap) {
+                        is Map<*, *> -> (placeMap["placeId"] as? String) == placeId
+                        else -> false
+                    }
+                }
+                
+                if (placeToRemove == null) {
+                    return Result.failure(Exception("장소를 찾을 수 없습니다."))
+                }
+                
+                // 삭제할 placeId를 제외한 장소들만 필터링함으로써 선택한 장소 제거
+                val updatedPlaces = currentPlaces.filter { placeMap ->
+                    when (placeMap) {
+                        is Map<*, *> -> (placeMap["placeId"] as? String) != placeId
+                        else -> false
+                    }
+                }
+                
+                // 리스트 업데이트
+                if (updatedPlaces.isEmpty() && currentCountry != null) {
+                    // places가 비어있으면 places와 country 모두 업데이트
+                    db.collection("lists")
+                        .document(listId)
+                        .update(
+                            "places", updatedPlaces,
+                            "country", FieldValue.delete()
+                        )
+                        .await()
+                } else {
+                    // places만 업데이트
+                    db.collection("lists")
+                        .document(listId)
+                        .update("places", updatedPlaces)
+                        .await()
+                }
+                
+                // 통계 업데이트
+                val remainingPlaceIds = updatedPlaces.mapNotNull { placeMap ->
+                    when (placeMap) {
+                        is Map<*, *> -> placeMap["placeId"] as? String
+                        else -> null
+                    }
+                }
+                
+                // 삭제할 장소가 리스트 내 유일한 장소였는지 확인
+                val isLastPlace = currentPlaces.size == 1
+                
+                // 리스트 내 상품 목록 가져오기
+                val productsSnapshot = db.collection("lists")
+                    .document(listId)
+                    .collection("list_products")
+                    .get()
+                    .await()
+                
+                productsSnapshot.documents.forEach { productDoc ->
+                    val productId = productDoc.getString("productId")
+                    if (productId != null && productId.isNotEmpty() && currentCountry != null) {
+                        if (isLastPlace) {
+                            // 유일한 장소였을 경우: 국가 통계도 감소
+                            updateProductStats(currentCountry, listOf(placeId), productId, increment = false)
+                        } else {
+                            // 다른 장소들이 남아있을 경우: 해당 장소 통계만 감소
+                            updateProductStatsForPlace(placeId, productId, increment = false)
+                        }
+                    }
+                }
+            } else {
+                // Room DB 리스트인 경우
+                val list = listDao.getListById(listId)
+                if (list == null) {
+                    return Result.failure(Exception("리스트를 찾을 수 없습니다."))
+                }
+                
+                // 삭제할 장소가 있는지 확인
+                val placeToRemove = list.places.find { it.placeId == placeId }
+                if (placeToRemove == null) {
+                    return Result.failure(Exception("장소를 찾을 수 없습니다."))
+                }
+                
+                // 삭제할 placeId를 제외한 장소들만 필터링함으로써 선택한 장소 제거
+                val updatedPlaces = list.places.filter { it.placeId != placeId }
+                
+                // 리스트 업데이트 (places가 비어있으면 country도 null로 설정)
+                val updatedCountry = if (updatedPlaces.isEmpty()) null else list.country
+                listDao.updateList(list.copy(places = updatedPlaces, country = updatedCountry))
+                
+                // 통계 업데이트
+                val isLastPlace = list.places.size == 1
+                
+                // 리스트 내 상품 목록 가져오기
+                val products = listProductDao.getProductsByListId(listId).first()
+                
+                products.forEach { product ->
+                    val productId = product.productId
+                    if (productId != null && productId.isNotEmpty() && list.country != null) {
+                        if (isLastPlace) {
+                            // 유일한 장소였을 경우: 국가 통계도 감소
+                            updateProductStats(list.country!!, listOf(placeId), productId, increment = false)
+                        } else {
+                            // 다른 장소들이 남아있을 경우: 해당 장소 통계만 감소
+                            updateProductStatsForPlace(placeId, productId, increment = false)
+                        }
+                    }
+                }
+                
+                // places 테이블에서 해당 리스트 ID 제거
+                val place = placeDao.getPlaceById(placeId)
+                if (place != null) {
+                    val updatedListIds = place.listId.filter { it != listId }
+                    if (updatedListIds.isEmpty()) {
+                        // listId 배열이 비어있으면 해당 장소 데이터 삭제
+                        GeofenceManager.removeGeofence(getApplication(), place.placeId, place.name)
+                        placeDao.deletePlaceById(placeId)
+                    } else {
+                        // listId 배열에서 해당 리스트 ID 제거
+                        placeDao.updatePlace(place.copy(listId = updatedListIds))
+                    }
+                }
+            }
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
     // 선택된 리스트들에 상품 추가
     suspend fun addProductToSelectedLists(
         productDetails: com.example.tripcart.ui.screen.ProductDetails,
@@ -1414,6 +1559,35 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    // Firestore 리스트 상세 정보를 실시간 Flow로 가져오기
+    fun getFirestoreListDetailFlow(listId: String): Flow<ListEntity?> = callbackFlow {
+        val listener = db.collection("lists")
+            .document(listId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    android.util.Log.e("ListViewModel", "Error listening to Firestore list detail", error)
+                    trySend(null)
+                    return@addSnapshotListener
+                }
+                
+                if (snapshot != null && snapshot.exists()) {
+                    try {
+                        val listEntity = parseListDocument(snapshot)
+                        trySend(listEntity)
+                    } catch (e: Exception) {
+                        android.util.Log.e("ListViewModel", "Error parsing list document", e)
+                        trySend(null)
+                    }
+                } else {
+                    trySend(null)
+                }
+            }
+        
+        awaitClose {
+            listener.remove()
+        }
+    }
+    
     // 특정 리스트의 상품 목록 가져오기 (Flow) - Room DB
     fun getProductsByListId(listId: String): Flow<List<ListProductEntity>> {
         return listProductDao.getProductsByListId(listId)
@@ -1596,6 +1770,60 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } catch (e: Exception) {
                     Result.failure(Exception("리스트 상태 업데이트 실패: ${e.message}"))
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    // 리스트 이름 업데이트
+    suspend fun updateListName(
+        listId: String,
+        newName: String,
+        isFirestoreList: Boolean
+    ): Result<Unit> {
+        return try {
+            if (isFirestoreList) {
+                // Firestore 리스트인 경우
+                try {
+                    val listDoc = db.collection("lists").document(listId).get().await()
+                    if (listDoc.exists()) {
+                        db.collection("lists")
+                            .document(listId)
+                            .update("name", newName)
+                            .await()
+                        
+                        // Firestore 리스트는 리스너가 자동으로 반영하므로 별도 처리 불필요
+                        
+                        Result.success(Unit)
+                    } else {
+                        Result.failure(Exception("리스트를 찾을 수 없습니다."))
+                    }
+                } catch (e: Exception) {
+                    Result.failure(Exception("리스트 이름 업데이트 실패: ${e.message}"))
+                }
+            } else {
+                // Room DB 리스트인 경우
+                val list = listDao.getListById(listId)
+                if (list != null) {
+                    val updatedList = list.copy(name = newName)
+                    listDao.updateList(updatedList)
+                    
+                    // Room DB 리스트는 직접 업데이트했으므로 UI 상태도 직접 업데이트
+                    _uiState.value = _uiState.value.copy(
+                        lists = _uiState.value.lists.map { listItem ->
+                            if (listItem.listId == listId) {
+                                listItem.copy(name = newName)
+                            } else {
+                                listItem
+                            }
+                        }
+                    )
+                    
+                    Result.success(Unit)
+                } else {
+                    Result.failure(Exception("리스트를 찾을 수 없습니다."))
                 }
             }
         } catch (e: Exception) {

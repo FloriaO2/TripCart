@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ExpandLess
@@ -110,15 +111,38 @@ fun ListDetailScreen(
     // 채팅 다이얼로그 표시 여부
     var showChatDialog by remember { mutableStateOf(false) }
     
-    // 리스트 정보 로드
+    // 장소 삭제 관련
+    var showDeletePlaceDialog by remember { mutableStateOf(false) }
+    var placeToDelete by remember { mutableStateOf<PlaceDetails?>(null) }
+    
+    // 리스트 이름 편집 관련
+    var showEditListNameDialog by remember { mutableStateOf(false) }
+    var editedListName by remember { mutableStateOf("") }
+    
+    // Firestore에 리스트가 있는지 확인
     LaunchedEffect(listId) {
-        isLoading = true
-        
-        // Firestore에 리스트가 있는지 확인
         isFirestoreList = viewModel.hasInviteCode(listId)
-        
-        // 리스트 정보 가져오기
-        listEntity = viewModel.getListDetail(listId)
+    }
+    
+    // 리스트 정보 실시간 업데이트 (Firestore 리스트인 경우 Flow 사용)
+    var isFirstLoad by remember { mutableStateOf(true) }
+    LaunchedEffect(isFirestoreList, listId) {
+        if (isFirestoreList == true) {
+            isFirstLoad = true
+            viewModel.getFirestoreListDetailFlow(listId).collect { entity ->
+                if (entity != null) {
+                    if (isFirstLoad) {
+                        isLoading = true
+                        isFirstLoad = false
+                    }
+                    listEntity = entity
+                }
+            }
+        } else if (isFirestoreList == false) {
+            // Room DB 리스트: 한 번만 로드
+            isLoading = true
+            listEntity = viewModel.getListDetail(listId)
+        }
     }
     
     // 공유 리스트일 때 참여자 정보 실시간 업데이트
@@ -239,31 +263,55 @@ fun ListDetailScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         
-                        // 우측 개인 리스트일 경우 편집 아이콘, 공유 리스트일 경우 채팅 아이콘
-                        // isFirestoreList를 먼저 확인해서 올바른 아이콘만 렌더링할 수 있도록
-                        val isShared = isFirestoreList == true
-                        IconButton(
-                            onClick = {
-                                if (isShared) {
-                                    showChatDialog = true
-                                } else {
-                                    onEditList()
-                                }
-                            },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .align(Alignment.CenterEnd)
+                        // 우측 편집 아이콘 + 공유 리스트인 경우 채팅 아이콘
+                        Row(
+                            modifier = Modifier.align(Alignment.CenterEnd),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            // 편집 아이콘 - read 권한이 아닐 때만 표시
+                            val currentUserRole = participantInfo?.currentUserRole
+                            val canEdit = when {
+                                // 공유 리스트인 경우 participantInfo가 로드될 때까지 대기
+                                isFirestoreList == true -> {
+                                    when (currentUserRole) {
+                                        "owner", "edit" -> true
+                                        "read" -> false
+                                        null -> false // participantInfo 로드 전
+                                        else -> false
+                                    }
+                                }
+                                // 개인 리스트는 항상 편집 가능
+                                else -> true
+                            }
+                            
+                            if (canEdit) {
+                                IconButton(
+                                    onClick = {
+                                        editedListName = listEntity?.name ?: ""
+                                        showEditListNameDialog = true
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "리스트 이름 편집"
+                                    )
+                                }
+                            }
+                            
+                            // 공유 리스트인 경우 채팅 아이콘
                             if (isFirestoreList == true) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.chat),
-                                    contentDescription = "채팅"
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "편집"
-                                )
+                                IconButton(
+                                    onClick = {
+                                        showChatDialog = true
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.chat),
+                                        contentDescription = "채팅"
+                                    )
+                                }
                             }
                         }
                     }
@@ -292,8 +340,7 @@ fun ListDetailScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .padding(paddingValues)
                 ) {
                     // 최상단: 공유 리스트 / 개인 리스트 구분
                     item {
@@ -731,6 +778,22 @@ fun ListDetailScreen(
                             ) {
                                 items(placesDetails.size) { index ->
                                     val place = placesDetails[index]
+                                    // 현재 사용자의 권한 확인
+                                    val currentUserRole = participantInfo?.currentUserRole
+                                    val canEditPlace = when {
+                                        // 공유 리스트인 경우 participantInfo가 로드될 때까지 대기
+                                        isFirestoreList == true -> {
+                                            when (currentUserRole) {
+                                                "owner", "edit" -> true
+                                                "read" -> false
+                                                null -> false // participantInfo 로드 전
+                                                else -> false
+                                            }
+                                        }
+                                        // 개인 리스트는 항상 편집 가능
+                                        else -> true
+                                    }
+                                    
                                     PlaceCard(
                                         place = place,
                                         totalPlacesCount = placesDetails.size,
@@ -750,6 +813,14 @@ fun ListDetailScreen(
                                                 val intent = Intent(Intent.ACTION_VIEW, it)
                                                 context.startActivity(intent)
                                             }
+                                        },
+                                        onDeleteClick = if (canEditPlace) {
+                                            {
+                                                placeToDelete = place
+                                                showDeletePlaceDialog = true
+                                            }
+                                        } else {
+                                            null
                                         }
                                     )
                                 }
@@ -821,6 +892,11 @@ fun ListDetailScreen(
                                 },
                                 canEdit = canEdit
                             )
+                        }
+                        
+                        // 마지막 상품 하단에 여백 추가
+                        item {
+                            Spacer(modifier = Modifier.height(22.dp))
                         }
                     }
                 }
@@ -957,6 +1033,111 @@ fun ListDetailScreen(
                 viewModel = viewModel
             )
         }
+        
+        // 장소 삭제 확인 다이얼로그
+        if (showDeletePlaceDialog && placeToDelete != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    showDeletePlaceDialog = false
+                    placeToDelete = null
+                },
+                title = {
+                    Text("장소 삭제")
+                },
+                text = {
+                    Text("정말로 ${placeToDelete?.name} 상점을 삭제하시겠습니까?")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            placeToDelete?.let { place ->
+                                scope.launch {
+                                    val result = viewModel.removePlaceFromList(
+                                        listId = listId,
+                                        placeId = place.placeId,
+                                        isFirestoreList = isFirestoreList == true
+                                    )
+                                    result.onSuccess {
+                                        // 성공 시 listEntity 다시 로드 (placesDetails는 LaunchedEffect에서 자동 업데이트됨)
+                                        listEntity = viewModel.getListDetail(listId)
+                                    }
+                                    showDeletePlaceDialog = false
+                                    placeToDelete = null
+                                }
+                            }
+                        }
+                    ) {
+                        Text("예", color = Color.Red)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showDeletePlaceDialog = false
+                            placeToDelete = null
+                        }
+                    ) {
+                        Text("아니오")
+                    }
+                }
+            )
+        }
+        
+        // 리스트 이름 편집 다이얼로그
+        if (showEditListNameDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showEditListNameDialog = false
+                    editedListName = ""
+                },
+                title = {
+                    Text("리스트 이름 편집")
+                },
+                text = {
+                    OutlinedTextField(
+                        value = editedListName,
+                        onValueChange = { editedListName = it },
+                        label = { Text("리스트 이름") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (editedListName.isNotBlank()) {
+                                scope.launch {
+                                    val result = viewModel.updateListName(
+                                        listId = listId,
+                                        newName = editedListName.trim(),
+                                        isFirestoreList = isFirestoreList == true
+                                    )
+                                    result.onSuccess {
+                                        // 성공 시 listEntity 다시 로드
+                                        listEntity = viewModel.getListDetail(listId)
+                                    }
+                                    showEditListNameDialog = false
+                                    editedListName = ""
+                                }
+                            }
+                        },
+                        enabled = editedListName.isNotBlank()
+                    ) {
+                        Text("저장")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showEditListNameDialog = false
+                            editedListName = ""
+                        }
+                    ) {
+                        Text("취소")
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -997,7 +1178,8 @@ fun StatusBadge(
 fun PlaceCard(
     place: PlaceDetails,
     totalPlacesCount: Int,
-    onMapClick: () -> Unit
+    onMapClick: () -> Unit,
+    onDeleteClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
@@ -1055,15 +1237,38 @@ fun PlaceCard(
                 }
             }
             
-            // 장소 이름
-            Text(
-                text = place.name,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 10.dp)
-            )
+            // 장소 이름과 삭제 버튼
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = place.name,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // 삭제 버튼
+                if (onDeleteClick != null) {
+                    IconButton(
+                        onClick = onDeleteClick,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "장소 삭제",
+                            tint = Color.Red,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
             
             // 장소에 대한 하위 요소들 상하 간격을 조절하기 위한 Column
             Column{
