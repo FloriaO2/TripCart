@@ -329,7 +329,7 @@ fun AddPlaceToListScreen(
                             scope.launch {
                                 isProcessing = true
                                 val listName = newListName.ifBlank { "새 리스트" }
-                                val result = listViewModel.createNewList(placeDetails, listName)
+                                val result = listViewModel.createNewList(listName)
                                 
                                 if (result.isSuccess) {
                                     // 팝업 바로 닫기

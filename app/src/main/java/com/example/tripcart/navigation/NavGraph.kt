@@ -11,6 +11,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -224,6 +227,7 @@ fun TripCartNavGraph(
                 onNavigateToListDetail = { listId ->
                     navController.navigate(Screen.ListDetail.createRoute(listId))
                 },
+                viewModel = sharedListViewModel,
                 notificationViewModel = sharedNotificationViewModel
             )
         }
@@ -284,7 +288,31 @@ fun TripCartNavGraph(
             route = Screen.ListDetail.route,
             arguments = listOf(
                 navArgument("listId") { type = NavType.StringType }
-            )
+            ),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
         ) { backStackEntry ->
             val listId = backStackEntry.arguments?.getString("listId") ?: ""
             // 푸시 알림 또는 알림 페이지에서 이동한 경우 채팅 팝업 열기
@@ -324,7 +352,33 @@ fun TripCartNavGraph(
             )
         }
         
-        composable(Screen.AddPlace.route) {
+        composable(
+            route = Screen.AddPlace.route,
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
+        ) {
             AddPlaceScreen(
                 onBack = {
                     navController.popBackStack()
@@ -338,7 +392,33 @@ fun TripCartNavGraph(
             )
         }
         
-        composable(Screen.AddPlaceToList.route) {
+        composable(
+            route = Screen.AddPlaceToList.route,
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
+        ) {
             // AddPlaceScreen과 같은 ViewModel 인스턴스 사용
             // selectedPlace가 설정될 때까지 대기
             val placeUiState by sharedPlaceViewModel.uiState.collectAsState()
@@ -373,7 +453,33 @@ fun TripCartNavGraph(
             }
         }
         
-        composable(Screen.AddProduct.route) {
+        composable(
+            route = Screen.AddProduct.route,
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
+        ) {
             AddProductScreen(
                 onBack = {
                     // 뒤로가기 시 draftProduct 초기화하여 AddProductScreen 내부 데이터 리셋
@@ -394,7 +500,31 @@ fun TripCartNavGraph(
             arguments = listOf(
                 navArgument("productId") { type = NavType.StringType },
                 navArgument("listId") { type = NavType.StringType }
-            )
+            ),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
         ) { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId") ?: ""
             val listId = backStackEntry.arguments?.getString("listId") ?: ""
@@ -452,7 +582,33 @@ fun TripCartNavGraph(
             }
         }
         
-        composable(Screen.AddProductToList.route) {
+        composable(
+            route = Screen.AddProductToList.route,
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
+        ) {
             // ProductViewModel에서 저장된 상품 정보 가져오기
             val productUiState by sharedProductViewModel.uiState.collectAsState()
             val productDetails = productUiState.savedProduct
@@ -603,7 +759,33 @@ fun TripCartNavGraph(
             )
         }
         
-        composable(Screen.RankingDetail.route) {
+        composable(
+            route = Screen.RankingDetail.route,
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
+        ) {
             RankingDetailScreen(
                 selectedCountry = null,
                 onBack = {
@@ -625,7 +807,31 @@ fun TripCartNavGraph(
             route = Screen.RankingDetailWithCountry.route,
             arguments = listOf(
                 navArgument("country") { type = NavType.StringType }
-            )
+            ),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
         ) { backStackEntry ->
             val country = backStackEntry.arguments?.getString("country")
             RankingDetailScreen(
@@ -649,7 +855,31 @@ fun TripCartNavGraph(
             route = Screen.AddProductWithId.route,
             arguments = listOf(
                 navArgument("productId") { type = NavType.StringType }
-            )
+            ),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
         ) { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId") ?: ""
             AddProductScreen(
@@ -665,7 +895,33 @@ fun TripCartNavGraph(
             )
         }
         
-        composable(Screen.AllProducts.route) {
+        composable(
+            route = Screen.AllProducts.route,
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
+        ) {
             AllProductsScreen(
                 onBack = {
                     navController.popBackStack()
@@ -684,7 +940,31 @@ fun TripCartNavGraph(
             route = Screen.ProductReview.route,
             arguments = listOf(
                 navArgument("productId") { type = NavType.StringType }
-            )
+            ),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
         ) { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId") ?: ""
             ProductReviewScreen(
@@ -703,7 +983,31 @@ fun TripCartNavGraph(
             route = Screen.WriteReview.route,
             arguments = listOf(
                 navArgument("productId") { type = NavType.StringType }
-            )
+            ),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
         ) { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId") ?: ""
             WriteReviewScreen(
@@ -774,7 +1078,33 @@ fun TripCartNavGraph(
             )
         }
         
-        composable(Screen.Notification.route) {
+        composable(
+            route = Screen.Notification.route,
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
+        ) {
             NotificationScreen(
                 onBack = {
                     navController.popBackStack()
@@ -790,7 +1120,33 @@ fun TripCartNavGraph(
             )
         }
         
-        composable(Screen.FavoriteProducts.route) {
+        composable(
+            route = Screen.FavoriteProducts.route,
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
+        ) {
             FavoriteProductsScreen(
                 onBack = {
                     navController.popBackStack()

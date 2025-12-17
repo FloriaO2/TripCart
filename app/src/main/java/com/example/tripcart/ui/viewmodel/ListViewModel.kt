@@ -39,7 +39,7 @@ data class ListItemUiState(
 
 data class ListUiState(
     val lists: List<ListItemUiState> = emptyList(),
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true, // 초기 로딩 상태를 true로 설정하여 앱 시작 시 로딩 표시
     val errorMessage: String? = null
 )
 
@@ -745,7 +745,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     // 새 리스트 생성
-    suspend fun createNewList(placeDetails: PlaceDetails, listName: String = "새 리스트"): Result<String> {
+    suspend fun createNewList(listName: String = "새 리스트"): Result<String> {
         return try {
             val listId = UUID.randomUUID().toString()
             
@@ -929,8 +929,9 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 
-                // 리스트 목록 다시 로드
-                loadLists()
+                // Firestore 리스트는 리스너가 자동으로 반영하고,
+                // Room DB 리스트는 Flow가 자동으로 반영하므로
+                // 별도의 loadLists() 호출 불필요
             } catch (e: Exception) {
                 // 리스트 삭제 실패 에러
             }
@@ -1292,8 +1293,9 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             
-            // 리스트 목록 새로고침
-            loadLists()
+            // Firestore 리스트는 리스너가 자동으로 반영하고,
+            // Room DB 리스트는 직접 업데이트했으므로
+            // 별도의 loadLists() 호출 불필요
             
             Result.success(Unit)
         } catch (e: Exception) {
@@ -1381,39 +1383,11 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             
-            // 리스트 목록 새로고침
-            loadLists()
+            // Firestore 리스트는 리스너가 자동으로 반영하고,
+            // Room DB 리스트는 직접 업데이트했으므로
+            // 별도의 loadLists() 호출 불필요
             
             Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-    
-    // 새 리스트 생성 (상품용)
-    suspend fun createNewListForProduct(
-        productDetails: com.example.tripcart.ui.screen.ProductDetails,
-        listName: String = "새 리스트"
-    ): Result<String> {
-        return try {
-            val listId = UUID.randomUUID().toString()
-            
-            // 로컬 DB에 빈 리스트 생성
-            val listEntity = ListEntity(
-                listId = listId,
-                name = listName,
-                status = "준비중",
-                country = null, // 상품은 국가 제약 없음
-                places = emptyList(),
-                productCount = 0,
-                firestoreSynced = false
-            )
-            listDao.insertList(listEntity)
-            
-            // 리스트 목록 새로고침 (선택 상태는 자동으로 보존)
-            loadLists()
-            
-            Result.success(listId)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -1592,8 +1566,16 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 val updatedList = list.copy(status = status)
                 listDao.updateList(updatedList)
                 
-                // 리스트 목록 새로고침
-                loadLists()
+                // Room DB 리스트는 직접 업데이트했으므로 UI 상태도 직접 업데이트
+                _uiState.value = _uiState.value.copy(
+                    lists = _uiState.value.lists.map { listItem ->
+                        if (listItem.listId == listId) {
+                            listItem.copy(status = status)
+                        } else {
+                            listItem
+                        }
+                    }
+                )
                 
                 Result.success(Unit)
             } else {
@@ -1606,8 +1588,7 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                             .update("status", status)
                             .await()
                         
-                        // 리스트 목록 새로고침
-                        loadLists()
+                        // Firestore 리스트는 리스너가 자동으로 반영하므로 별도 처리 불필요
                         
                         Result.success(Unit)
                     } else {

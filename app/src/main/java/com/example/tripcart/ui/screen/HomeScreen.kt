@@ -49,11 +49,6 @@ fun HomeScreen(
     // 진행중인 리스트만 필터링
     val activeLists = uiState.lists.filter { it.status == "진행중" }
     
-    // 화면이 표시될 때마다 리스트 갱신
-    LaunchedEffect(Unit) {
-        viewModel.loadLists()
-    }
-    
     Scaffold(
         containerColor = Color.White,
         topBar = {

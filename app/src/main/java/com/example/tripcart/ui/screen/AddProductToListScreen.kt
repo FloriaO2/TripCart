@@ -506,7 +506,7 @@ fun AddProductToListScreen(
                             scope.launch {
                                 isProcessing = true
                                 val listName = newListName.ifBlank { "새 리스트" }
-                                val result = listViewModel.createNewListForProduct(productDetails, listName)
+                                val result = listViewModel.createNewList(listName)
                                 
                                 if (result.isSuccess) {
                                     showCreateListDialog = false

@@ -61,11 +61,6 @@ fun ListScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     
-    // 화면이 표시될 때마다 리스트 갱신
-    LaunchedEffect(Unit) {
-        viewModel.loadLists()
-    }
-    
     Scaffold(
         containerColor = Color.White,
         topBar = {
