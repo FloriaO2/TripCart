@@ -121,7 +121,7 @@ fun NotificationScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "알림이 없습니다",
+                        text = "알림이 없습니다.",
                         fontSize = 16.sp,
                         color = Color.Gray
                     )

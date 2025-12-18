@@ -323,25 +323,40 @@ fun RankingScreen(
                 )
 
                 // 국가별 박스들
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    itemsIndexed(
-                        items = uiState.topCountries,
-                        key = { _, countryRanking -> countryRanking.country } // country를 고유키로 사용
-                    ) { index, countryRanking ->
-                        CountryRankingBox(
-                            country = countryRanking.country,
-                            rank = index + 1,
-                            products = getTopProductsWithSameRank(
-                                uiState.countryProducts[countryRanking.country] ?: emptyList(),
-                                maxCount = 5 // 기준 상품의 위치: 이 위치의 상품 순위까지 모두 포함
-                            ),
-                            onViewAllClick = {
-                                onNavigateToCountryDetail(countryRanking.country)
-                            },
-                            onNavigateToReview = onNavigateToReview
+                if (uiState.topCountries.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "데이터가 없습니다.",
+                            color = Color.Gray,
+                            fontSize = 16.sp
                         )
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        itemsIndexed(
+                            items = uiState.topCountries,
+                            key = { _, countryRanking -> countryRanking.country } // country를 고유키로 사용
+                        ) { index, countryRanking ->
+                            CountryRankingBox(
+                                country = countryRanking.country,
+                                rank = index + 1,
+                                products = getTopProductsWithSameRank(
+                                    uiState.countryProducts[countryRanking.country] ?: emptyList(),
+                                    maxCount = 5 // 기준 상품의 위치: 이 위치의 상품 순위까지 모두 포함
+                                ),
+                                onViewAllClick = {
+                                    onNavigateToCountryDetail(countryRanking.country)
+                                },
+                                onNavigateToReview = onNavigateToReview
+                            )
+                        }
                     }
                 }
             }
