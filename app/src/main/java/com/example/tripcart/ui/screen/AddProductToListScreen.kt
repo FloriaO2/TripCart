@@ -201,16 +201,10 @@ fun AddProductToListScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
-                    .border(
-                        width = 2.dp,
-                        color = Color(0x4F000000),
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
                 Column(
                     modifier = Modifier
@@ -321,68 +315,78 @@ fun AddProductToListScreen(
                         }
                     }
                     
-                    // 상품 이름
-                    Text(
-                        text = productDetails.productName,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 22.sp
-                    )
-                    
-                    // 구매 수량, 카테고리
-                    if (productDetails.quantity > 0 || productDetails.category.isNotEmpty()) {
+                    // 상품 박스 상단 영역 (수량, 상품 이름, 카테고리)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 좌측 - 수량 + 상품 정보 (상품 이름, 카테고리)
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             // 구매 수량
                             if (productDetails.quantity > 0) {
                                 Box(
                                     modifier = Modifier
                                         .background(
-                                            color = Color(0xC36A1B9A),
+                                            color = PrimaryAccent,
                                             shape = RoundedCornerShape(8.dp)
                                         )
-                                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                                        .padding(horizontal = 7.dp, vertical = 7.dp)
                                 ) {
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(0.dp)
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
                                             text = "${productDetails.quantity}",
-                                            fontSize = 16.sp,
+                                            fontSize = 20.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White,
-                                            lineHeight = 20.sp
+                                            lineHeight = 24.sp
                                         )
                                         Text(
                                             text = "개",
-                                            fontSize = 12.sp,
+                                            fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White,
-                                            lineHeight = 15.sp,
+                                            lineHeight = 18.sp,
                                             modifier = Modifier.padding(bottom = 1.dp)
                                         )
                                     }
                                 }
                             }
                             
-                            // 카테고리
-                            if (productDetails.category.isNotEmpty()) {
+                            // 상품 정보 (상품 이름, 카테고리)
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                // 상품 이름
                                 Text(
-                                    text = productDetails.category,
-                                    fontSize = 12.sp,
-                                    color = Color.Gray,
-                                    lineHeight = 14.sp
+                                    text = productDetails.productName,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    lineHeight = 17.sp
                                 )
+                                
+                                // 카테고리
+                                if (productDetails.category.isNotEmpty()) {
+                                    Text(
+                                        text = productDetails.category,
+                                        fontSize = 13.sp,
+                                        color = Color.Gray,
+                                        lineHeight = 13.sp
+                                    )
+                                }
                             }
                         }
                     }
                     
-                    // 메모
+                    // 상품 박스 하단 영역 (메모)
                     if (!productDetails.note.isNullOrEmpty()) {
                         Box(
                             modifier = Modifier

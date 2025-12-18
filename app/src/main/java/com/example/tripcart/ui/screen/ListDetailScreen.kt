@@ -16,6 +16,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -76,6 +77,8 @@ fun ListDetailScreen(
     onEditProduct: (String, String) -> Unit = { _, _ -> }, // productId, listId
     onGroupAddClick: () -> Unit = {}, // 그룹 추가 버튼 클릭
     openChatOnStart: Boolean = false, // 푸시 알림으로부터 이동 시 채팅 팝업 자동 열기
+    onAddPlace: () -> Unit = {}, // 상점 추가 버튼 클릭
+    onAddProduct: () -> Unit = {}, // 상품 추가 버튼 클릭
     viewModel: ListViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -744,20 +747,24 @@ fun ListDetailScreen(
                         }
                     }
                     
+                    // 상점 구분
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    item {
+                        SectionDivider(
+                            title = "상점",
+                            iconId = R.drawable.store,
+                            verticalPadding = 16.dp,
+                            onAddClick = onAddPlace
+                        )
+                    }
+                    item {
+                        Spacer(modifier = Modifier.height(2.dp))
+                    }
                     
-                    // 장소 섹션
+                    // 상점 섹션
                     if (placesDetails.isNotEmpty()) {
-                        /*
-                        item {
-                            Text(
-                                text = "장소",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 30.dp, vertical = 8.dp)
-                            )
-                        }
-                        */
-                        
                         item {
                             val lazyListState = rememberLazyListState()
                             val flingBehavior = rememberSnapFlingBehavior(
@@ -826,29 +833,49 @@ fun ListDetailScreen(
                                 }
                             }
                         }
+                    } else {
+                        // 상점이 없을 때
+                        item {
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "상점이 없습니다.",
+                                    color = Color.Gray,
+                                    fontSize = 16.sp
+                                )
+                            }
+                        }
+
+                        item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                     }
                     
-                    // 구분선
-                    if (placesDetails.isNotEmpty() && products.isNotEmpty()) {
-                        item {
-                            Divider(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                color = Color.Gray.copy(alpha = 0.3f),
-                                thickness = 1.dp
-                            )
-                        }
+                    // 상품 구분
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    item {
+                        SectionDivider(
+                            title = "상품",
+                            iconId = R.drawable.bag,
+                            verticalPadding = 16.dp,
+                            onAddClick = onAddProduct
+                        )
+                    }
+                    item {
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
                     
                     // 상품 섹션
-                    item {
-                        Text(
-                            text = "상품",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 30.dp, vertical = 8.dp)
-                        )
-                    }
-                    
                     if (products.isEmpty()) {
                         item {
                             Box(
@@ -1717,8 +1744,7 @@ fun ProductCard(
                                 .padding(horizontal = 7.dp, vertical = 7.dp)
                         ) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = "${product.quantity}",
@@ -1853,6 +1879,61 @@ fun StatusCheckbox(
                     tint = Color(0xFF28A745),
                     modifier = Modifier.size(24.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun SectionDivider(
+    title: String,
+    iconId: Int,
+    verticalPadding: androidx.compose.ui.unit.Dp = 12.dp,
+    onAddClick: (() -> Unit)? = null
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(SecondaryBackground)
+            .padding(vertical = verticalPadding)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 35.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = iconId),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = title,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF333333)
+                )
+            }
+            
+            // + 버튼
+            if (onAddClick != null) {
+                IconButton(
+                    onClick = onAddClick,
+                    modifier = Modifier.size(20.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "추가",
+                        tint = PrimaryAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }

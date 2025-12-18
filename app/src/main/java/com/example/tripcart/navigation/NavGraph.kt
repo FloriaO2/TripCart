@@ -32,6 +32,8 @@ import com.example.tripcart.ui.screen.MyPageScreen
 import com.example.tripcart.ui.screen.AddPlaceScreen
 import com.example.tripcart.ui.screen.AddPlaceToListScreen
 import com.example.tripcart.ui.screen.AddProductToListScreen
+import com.example.tripcart.ui.screen.AddPlaceForListScreen
+import com.example.tripcart.ui.screen.AddProductForListScreen
 import com.example.tripcart.ui.screen.EditProductScreen
 import com.example.tripcart.ui.screen.RankingScreen
 import com.example.tripcart.ui.screen.RankingDetailScreen
@@ -75,6 +77,12 @@ sealed class Screen(val route: String) {
     }
     object AddPlaceToList : Screen("add_place_to_list")
     object AddProductToList : Screen("add_product_to_list")
+    object AddPlaceForList : Screen("add_place_for_list/{listId}") {
+        fun createRoute(listId: String) = "add_place_for_list/$listId"
+    }
+    object AddProductForList : Screen("add_product_for_list/{listId}") {
+        fun createRoute(listId: String) = "add_product_for_list/$listId"
+    }
     object EditProduct : Screen("edit_product/{productId}/{listId}") {
         fun createRoute(productId: String, listId: String) = "edit_product/$productId/$listId"
     }
@@ -348,6 +356,12 @@ fun TripCartNavGraph(
                     // TODO: 그룹 추가 기능 구현
                 },
                 openChatOnStart = openChat,
+                onAddPlace = {
+                    navController.navigate(Screen.AddPlaceForList.createRoute(listId))
+                },
+                onAddProduct = {
+                    navController.navigate(Screen.AddProductForList.createRoute(listId))
+                },
                 viewModel = sharedListViewModel
             )
         }
@@ -580,6 +594,94 @@ fun TripCartNavGraph(
                     }
                 }
             }
+        }
+        
+        composable(
+            route = Screen.AddPlaceForList.route,
+            arguments = listOf(
+                navArgument("listId") { type = NavType.StringType }
+            ),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
+        ) { backStackEntry ->
+            val listId = backStackEntry.arguments?.getString("listId") ?: ""
+            AddPlaceForListScreen(
+                listId = listId,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onComplete = {
+                    navController.popBackStack()
+                },
+                placeViewModel = sharedPlaceViewModel,
+                listViewModel = sharedListViewModel
+            )
+        }
+        
+        composable(
+            route = Screen.AddProductForList.route,
+            arguments = listOf(
+                navArgument("listId") { type = NavType.StringType }
+            ),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(300)
+                )
+            }
+        ) { backStackEntry ->
+            val listId = backStackEntry.arguments?.getString("listId") ?: ""
+            AddProductForListScreen(
+                listId = listId,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onComplete = {
+                    navController.popBackStack()
+                },
+                productViewModel = sharedProductViewModel,
+                listViewModel = sharedListViewModel
+            )
         }
         
         composable(

@@ -553,14 +553,39 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                 .get()
                 .await()
             
-            if (!placeDoc.exists()) {
-                return Result.failure(Exception("장소 정보를 찾을 수 없습니다."))
-            }
+            val lat: Double
+            val lng: Double
+            val placeName: String
             
-            val placeData = placeDoc.data ?: return Result.failure(Exception("장소 정보가 없습니다."))
-            val lat = (placeData["latitude"] as? Double) ?: (placeData["lat"] as? Double) ?: 0.0
-            val lng = (placeData["longitude"] as? Double) ?: (placeData["lng"] as? Double) ?: 0.0
-            val placeName = placeData["name"] as? String ?: placeDetails.name
+            if (!placeDoc.exists()) {
+                // 장소가 Firestore에 없으면 placeDetails에서 직접 사용하고 저장
+                lat = placeDetails.latitude
+                lng = placeDetails.longitude
+                placeName = placeDetails.name
+                
+                // Firestore에 장소 정보 저장
+                val placeData = hashMapOf<String, Any>(
+                    "placeId" to placeDetails.placeId,
+                    "latitude" to lat,
+                    "longitude" to lng,
+                    "name" to placeName,
+                    "address" to (placeDetails.address ?: ""),
+                    "country" to (placeDetails.country ?: ""),
+                    "photoUrl" to (placeDetails.photoUrl ?: ""),
+                    "phoneNumber" to (placeDetails.phoneNumber ?: ""),
+                    "websiteUri" to (placeDetails.websiteUri ?: ""),
+                    "openingHours" to (placeDetails.openingHours ?: emptyList())
+                )
+                db.collection("places")
+                    .document(placeDetails.placeId)
+                    .set(placeData)
+                    .await()
+            } else {
+                val placeData = placeDoc.data ?: return Result.failure(Exception("장소 정보가 없습니다."))
+                lat = (placeData["latitude"] as? Double) ?: (placeData["lat"] as? Double) ?: placeDetails.latitude
+                lng = (placeData["longitude"] as? Double) ?: (placeData["lng"] as? Double) ?: placeDetails.longitude
+                placeName = placeData["name"] as? String ?: placeDetails.name
+            }
             
             // 각 선택된 리스트에 장소 추가
             selectedLists.forEach { listItem ->
@@ -585,72 +610,76 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                             }
                         }
                         
-                        if (placeDetails.placeId !in currentPlaceIds) {
-                            val newPlace = hashMapOf("name" to placeDetails.name, "placeId" to placeDetails.placeId)
-                            val updatedPlaces = currentPlaces.toMutableList().apply {
-                                add(newPlace)
+                        // 중복이면 예외 던지기
+                        if (placeDetails.placeId in currentPlaceIds) {
+                            throw Exception("이미 추가된 장소입니다.")
+                        }
+                        
+                        // 중복이 아니므로 추가 진행
+                        val newPlace = hashMapOf("name" to placeDetails.name, "placeId" to placeDetails.placeId)
+                        val updatedPlaces = currentPlaces.toMutableList().apply {
+                            add(newPlace)
+                        }
+                        
+                        // 국가 업데이트 (첫 장소인 경우)
+                        val updateData = hashMapOf<String, Any>(
+                            "places" to updatedPlaces
+                        )
+                        if (currentCountry == null && placeDetails.country != null) {
+                            updateData["country"] = placeDetails.country
+                        }
+                        
+                        db.collection("lists")
+                            .document(listItem.listId)
+                            .update(updateData)
+                            .await()
+                        
+                        // RoomDB의 places 테이블에 저장/업데이트
+                        val existingPlace = placeDao.getPlaceById(placeDetails.placeId)
+                        if (existingPlace != null) {
+                            // 기존 장소가 있으면 listId 배열에 추가
+                            val updatedListIds = if (listItem.listId !in existingPlace.listId) {
+                                existingPlace.listId + listItem.listId
+                            } else {
+                                existingPlace.listId
                             }
-                            
-                            // 국가 업데이트 (첫 장소인 경우)
-                            val updateData = hashMapOf<String, Any>(
-                                "places" to updatedPlaces
+                            placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
+                        } else {
+                            // 기존 장소가 없으면 새로 생성
+                            val newPlaceEntity = PlaceEntity(
+                                placeId = placeDetails.placeId,
+                                lat = lat,
+                                lng = lng,
+                                name = placeName,
+                                listId = listOf(listItem.listId)
                             )
-                            if (currentCountry == null && placeDetails.country != null) {
-                                updateData["country"] = placeDetails.country
-                            }
-                            
-                            db.collection("lists")
+                            placeDao.insertPlace(newPlaceEntity)
+                            // Geofence 등록
+                            GeofenceManager.addGeofence(getApplication(), newPlaceEntity)
+                        }
+                        
+                        // Firestore 리스트에 장소 추가 시 랭킹 데이터 업데이트
+                        // 리스트에 이미 상품이 있는 경우, 해당 상품들의 랭킹 데이터 업데이트
+                        val finalCountry = currentCountry ?: placeDetails.country
+                        if (finalCountry != null) {
+                            // 리스트의 상품 목록 가져오기
+                            val productsSnapshot = db.collection("lists")
                                 .document(listItem.listId)
-                                .update(updateData)
+                                .collection("list_products")
+                                .get()
                                 .await()
                             
-                            // RoomDB의 places 테이블에 저장/업데이트
-                            val existingPlace = placeDao.getPlaceById(placeDetails.placeId)
-                            if (existingPlace != null) {
-                                // 기존 장소가 있으면 listId 배열에 추가
-                                val updatedListIds = if (listItem.listId !in existingPlace.listId) {
-                                    existingPlace.listId + listItem.listId
-                                } else {
-                                    existingPlace.listId
-                                }
-                                placeDao.updatePlace(existingPlace.copy(listId = updatedListIds))
-                            } else {
-                                // 기존 장소가 없으면 새로 생성
-                                val newPlace = PlaceEntity(
-                                    placeId = placeDetails.placeId,
-                                    lat = lat,
-                                    lng = lng,
-                                    name = placeName,
-                                    listId = listOf(listItem.listId)
-                                )
-                                placeDao.insertPlace(newPlace)
-                                // Geofence 등록
-                                GeofenceManager.addGeofence(getApplication(), newPlace)
-                            }
-                            
-                            // Firestore 리스트에 장소 추가 시 랭킹 데이터 업데이트
-                            // 리스트에 이미 상품이 있는 경우, 해당 상품들의 랭킹 데이터 업데이트
-                            val finalCountry = currentCountry ?: placeDetails.country
-                            if (finalCountry != null) {
-                                // 리스트의 상품 목록 가져오기
-                                val productsSnapshot = db.collection("lists")
-                                    .document(listItem.listId)
-                                    .collection("list_products")
-                                    .get()
-                                    .await()
-                                
-                                productsSnapshot.documents.forEach { productDoc ->
-                                    val productId = productDoc.getString("productId")
-                                    if (productId != null && productId.isNotEmpty()) {
-                                        // 국가별 카운트는 리스트당 한 번만 추가 (첫 장소인 경우만)
-                                        val shouldUpdateCountry = currentCountry == null && placeDetails.country != null
-                                        if (shouldUpdateCountry) {
-                                            // 국가 totalCount, 장소 totalCount, 장소별 카운트 등 모두 업데이트
-                                            updateProductStats(finalCountry, listOf(placeDetails.placeId), productId, increment = true)
-                                        } else {
-                                            // 장소별 카운트만 업데이트
-                                            updateProductStatsForPlace(placeDetails.placeId, productId, increment = true)
-                                        }
+                            productsSnapshot.documents.forEach { productDoc ->
+                                val productId = productDoc.getString("productId")
+                                if (productId != null && productId.isNotEmpty()) {
+                                    // 국가별 카운트는 리스트당 한 번만 추가 (첫 장소인 경우만)
+                                    val shouldUpdateCountry = currentCountry == null && placeDetails.country != null
+                                    if (shouldUpdateCountry) {
+                                        // 국가 totalCount, 장소 totalCount, 장소별 카운트 등 모두 업데이트
+                                        updateProductStats(finalCountry, listOf(placeDetails.placeId), productId, increment = true)
+                                    } else {
+                                        // 장소별 카운트만 업데이트
+                                        updateProductStatsForPlace(placeDetails.placeId, productId, increment = true)
                                     }
                                 }
                             }
