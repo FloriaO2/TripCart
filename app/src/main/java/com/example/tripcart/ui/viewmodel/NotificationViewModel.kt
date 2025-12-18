@@ -29,7 +29,8 @@ data class NotificationUiState(
     val notifications: List<NotificationItem> = emptyList(),
     val unreadCount: Int = 0,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val unreadChatListIds: Set<String> = emptySet() // 읽지 않은 채팅 알림이 있는 listId 목록
 )
 
 class NotificationViewModel(application: Application) : AndroidViewModel(application) {
@@ -54,9 +55,15 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 // getNotificationsFlow 함수로 수집한 데이터를 이용!
                 getNotificationsFlow(userId).collect { notifications ->
                     val unreadCount = notifications.count { !it.isRead }
+                    // 읽지 않은 채팅 알림의 listId 목록 추출
+                    val unreadChatListIds = notifications
+                        .filter { !it.isRead && it.type == "chat" }
+                        .map { it.listId }
+                        .toSet()
                     _uiState.value = _uiState.value.copy(
                         notifications = notifications,
                         unreadCount = unreadCount,
+                        unreadChatListIds = unreadChatListIds,
                         isLoading = false,
                         errorMessage = null
                     )
@@ -142,6 +149,32 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 // notifications: isRead가 false였던 애들만 모아놓은 집합
                 notifications.documents.forEach { doc ->
                     // doc.reference: 문서 위치 정보
+                    batch.update(doc.reference, "isRead", true)
+                }
+                batch.commit().await()
+            } catch (e: Exception) {
+                // 에러 처리
+            }
+        }
+    }
+    
+    // 특정 리스트의 채팅 알림 모두 읽음 처리
+    fun markChatNotificationsAsRead(listId: String) {
+        viewModelScope.launch {
+            val userId = auth.currentUser?.uid ?: return@launch
+            
+            try {
+                val notifications = db.collection("notifications")
+                    .document(userId)
+                    .collection("user_notifications")
+                    .whereEqualTo("listId", listId)
+                    .whereEqualTo("type", "chat")
+                    .whereEqualTo("isRead", false)
+                    .get()
+                    .await()
+                
+                val batch = db.batch()
+                notifications.documents.forEach { doc ->
                     batch.update(doc.reference, "isRead", true)
                 }
                 batch.commit().await()

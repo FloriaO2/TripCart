@@ -871,10 +871,10 @@ fun CountrySelectionDialog(
                                         fontSize = 20.sp
                                     )
                                 }
-                                Text(
-                                    text = country,
-                                    fontSize = 16.sp
-                                )
+                            Text(
+                                text = country,
+                                fontSize = 16.sp
+                            )
                             }
                         }
                     }

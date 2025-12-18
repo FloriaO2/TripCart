@@ -35,6 +35,7 @@ import com.example.tripcart.ui.components.AppBottomBar
 import com.example.tripcart.ui.components.AppTopBar
 import com.example.tripcart.util.BackgroundLocationPermissionHelper
 import com.example.tripcart.util.NotificationPermissionHelper
+import com.example.tripcart.util.SetStatusBarColor
 import com.example.tripcart.ui.viewmodel.NotificationViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
@@ -98,6 +99,12 @@ fun MyPageScreen(
     LaunchedEffect(Unit) {
         updatePermissionStates()
     }
+    
+    // 상태바 색상을 상단바와 동일하게 설정
+    SetStatusBarColor(
+        statusBarColor = Color.White,
+        isLightStatusBars = true
+    )
     
     Scaffold(
         containerColor = Color.White,

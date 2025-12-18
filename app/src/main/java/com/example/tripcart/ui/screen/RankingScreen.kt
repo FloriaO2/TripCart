@@ -37,6 +37,7 @@ import com.example.tripcart.ui.theme.PrimaryAccent
 import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.viewmodel.RankingViewModel
 import com.example.tripcart.ui.viewmodel.NotificationViewModel
+import com.example.tripcart.util.SetStatusBarColor
 
 // 국가 이름과 국기 이모티콘 매핑
 private val countryFlagMap = mapOf(
@@ -192,6 +193,12 @@ fun RankingScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val notificationState by notificationViewModel.uiState.collectAsState()
+    
+    // 상태바 색상을 상단바와 동일하게 설정
+    SetStatusBarColor(
+        statusBarColor = Color.White,
+        isLightStatusBars = true
+    )
     
     Scaffold(
         containerColor = Color.White,

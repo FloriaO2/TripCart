@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -57,6 +58,8 @@ import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.theme.BoxBackground
 import com.example.tripcart.ui.viewmodel.ListViewModel
 import com.example.tripcart.ui.viewmodel.PlaceDetails
+import com.example.tripcart.ui.viewmodel.NotificationViewModel
+import com.example.tripcart.util.SetStatusBarColor
 import com.example.tripcart.R
 import androidx.compose.ui.res.painterResource
 import com.google.firebase.firestore.FirebaseFirestore
@@ -79,7 +82,8 @@ fun ListDetailScreen(
     openChatOnStart: Boolean = false, // 푸시 알림으로부터 이동 시 채팅 팝업 자동 열기
     onAddPlace: () -> Unit = {}, // 상점 추가 버튼 클릭
     onAddProduct: () -> Unit = {}, // 상품 추가 버튼 클릭
-    viewModel: ListViewModel = viewModel()
+    viewModel: ListViewModel = viewModel(),
+    notificationViewModel: NotificationViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -113,6 +117,10 @@ fun ListDetailScreen(
     
     // 채팅 다이얼로그 표시 여부
     var showChatDialog by remember { mutableStateOf(false) }
+    
+    // 읽지 않은 채팅 알림 확인
+    val notificationState by notificationViewModel.uiState.collectAsState()
+    val hasUnreadChat = notificationState.unreadChatListIds.contains(listId)
     
     // 장소 삭제 관련
     var showDeletePlaceDialog by remember { mutableStateOf(false) }
@@ -229,6 +237,12 @@ fun ListDetailScreen(
         }
     }
     
+    // 상태바 색상을 상단바와 동일하게 설정
+    SetStatusBarColor(
+        statusBarColor = SecondaryBackground,
+        isLightStatusBars = true
+    )
+    
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = TertiaryBackground,
@@ -304,16 +318,31 @@ fun ListDetailScreen(
                             
                             // 공유 리스트인 경우 채팅 아이콘
                             if (isFirestoreList == true) {
-                                IconButton(
-                                    onClick = {
-                                        showChatDialog = true
-                                    },
+                                Box(
                                     modifier = Modifier.size(40.dp)
                                 ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.chat),
-                                        contentDescription = "채팅"
-                                    )
+                                    IconButton(
+                                        onClick = {
+                                            showChatDialog = true
+                                        },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.chat),
+                                            contentDescription = "채팅"
+                                        )
+                                    }
+                                    // 읽지 않은 채팅 뱃지
+                                    if (hasUnreadChat) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .offset(x = (-7).dp, y = 7.dp)
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.Red)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1054,6 +1083,13 @@ fun ListDetailScreen(
         
         // 채팅 다이얼로그
         if (showChatDialog && isFirestoreList == true) {
+            // 채팅 팝업이 열릴 때 해당 리스트의 채팅 알림 모두 읽음 처리
+            LaunchedEffect(showChatDialog) {
+                if (showChatDialog) {
+                    notificationViewModel.markChatNotificationsAsRead(listId)
+                }
+            }
+            
             ChatDialog(
                 listId = listId,
                 onDismiss = { showChatDialog = false },

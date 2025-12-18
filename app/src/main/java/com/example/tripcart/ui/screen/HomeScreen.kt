@@ -29,6 +29,7 @@ import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.ListViewModel
 import com.example.tripcart.ui.viewmodel.NotificationViewModel
+import com.example.tripcart.util.SetStatusBarColor
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 
@@ -48,6 +49,12 @@ fun HomeScreen(
     
     // 진행중인 리스트만 필터링
     val activeLists = uiState.lists.filter { it.status == "진행중" }
+    
+    // 상태바 색상을 상단바와 동일하게 설정
+    SetStatusBarColor(
+        statusBarColor = Color.White,
+        isLightStatusBars = true
+    )
     
     Scaffold(
         containerColor = Color.White,

@@ -39,6 +39,7 @@ import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.PlaceViewModel
 import com.example.tripcart.ui.viewmodel.PlaceDetails
 import com.example.tripcart.ui.viewmodel.ListViewModel
+import com.example.tripcart.util.SetStatusBarColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -71,6 +72,12 @@ fun AddPlaceForListScreen(
     LaunchedEffect(searchQuery) {
         placeViewModel.searchPlaces(searchQuery)
     }
+    
+    // 상태바 색상을 상단바와 동일하게 설정
+    SetStatusBarColor(
+        statusBarColor = SecondaryBackground,
+        isLightStatusBars = true
+    )
     
     Scaffold(
         containerColor = Color.White,

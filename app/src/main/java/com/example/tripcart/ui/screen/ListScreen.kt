@@ -41,6 +41,7 @@ import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.ListViewModel
 import com.example.tripcart.ui.viewmodel.ListItemUiState
 import com.example.tripcart.ui.viewmodel.NotificationViewModel
+import com.example.tripcart.util.SetStatusBarColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +62,12 @@ fun ListScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    
+    // 상태바 색상을 상단바와 동일하게 설정
+    SetStatusBarColor(
+        statusBarColor = Color.White,
+        isLightStatusBars = true
+    )
     
     Scaffold(
         containerColor = Color.White,

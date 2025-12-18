@@ -45,6 +45,7 @@ import com.example.tripcart.ui.theme.PrimaryAccent
 import com.example.tripcart.ui.viewmodel.ListViewModel
 import com.example.tripcart.ui.viewmodel.PlaceDetails
 import com.example.tripcart.ui.viewmodel.NotificationViewModel
+import com.example.tripcart.util.SetStatusBarColor
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.CameraUpdate
@@ -360,6 +361,12 @@ fun MapScreen(
     }
 
     val notificationState by notificationViewModel.uiState.collectAsState()
+    
+    // 상태바 색상을 상단바와 동일하게 설정
+    SetStatusBarColor(
+        statusBarColor = Color.White,
+        isLightStatusBars = true
+    )
     
     Scaffold(
         containerColor = Color.White,

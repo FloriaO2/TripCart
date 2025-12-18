@@ -38,6 +38,7 @@ import com.example.tripcart.ui.theme.SecondaryBackground
 import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.PlaceViewModel
 import com.example.tripcart.ui.viewmodel.PlaceDetails
+import com.example.tripcart.util.SetStatusBarColor
 import kotlinx.coroutines.delay
 
 // 구글 맵 Places API를 사용하여 상점 검색 기능 구현
@@ -66,6 +67,12 @@ fun AddPlaceScreen(
     }
     
     val snackbarHostState = remember { SnackbarHostState() }
+    
+    // 상태바 색상을 상단바와 동일하게 설정
+    SetStatusBarColor(
+        statusBarColor = SecondaryBackground,
+        isLightStatusBars = true
+    )
     
     Scaffold(
         containerColor = Color.White,

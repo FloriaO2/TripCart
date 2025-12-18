@@ -93,14 +93,23 @@ class MainActivity : ComponentActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        enableEdgeToEdge()
+        // 상태바 표시 후 시스템 윈도우에 맞춰 콘텐츠 배치
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // enableEdgeToEdge() // 상태바 표시를 위해 주석 처리
+        
+        // 네비게이션 바는 하단바 색상과 동일하게 고정
+        window.navigationBarColor = android.graphics.Color.WHITE
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.isAppearanceLightNavigationBars = true
+        
+        // 상태바 색상은 각 화면에서 동적으로 설정됨 (기본값은 흰색)
+        window.statusBarColor = android.graphics.Color.WHITE
+        windowInsetsController.isAppearanceLightStatusBars = true
         
         // 핸드폰 상태바 숨기기
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
-        windowInsetsController.systemBarsBehavior = 
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        // windowInsetsController.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+        // windowInsetsController.systemBarsBehavior = 
+        //     WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         
         // Intent에서 MapScreen으로 이동해야 하는지 확인
         shouldNavigateToMapState.value = intent.getBooleanExtra("navigate_to_map", false)
