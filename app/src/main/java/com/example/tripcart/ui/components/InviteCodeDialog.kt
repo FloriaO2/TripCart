@@ -86,6 +86,8 @@ fun InviteCodeDialog(
                     },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
                         focusedBorderColor = PrimaryAccent,
                         unfocusedBorderColor = Color.Gray
                     )
@@ -136,7 +138,10 @@ fun InviteCodeDialog(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = selectedRight != null && nickname.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = PrimaryAccent
+                        containerColor = PrimaryAccent,
+                        contentColor = Color.White,
+                        disabledContainerColor = Color.Gray,
+                        disabledContentColor = Color.White
                     )
                 ) {
                     Text(

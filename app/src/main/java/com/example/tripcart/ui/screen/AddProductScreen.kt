@@ -49,6 +49,7 @@ import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.theme.SecondaryBackground
 import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.ProductViewModel
+import com.example.tripcart.util.SetStatusBarColor
 import kotlinx.coroutines.delay
 import java.util.UUID
 
@@ -203,6 +204,12 @@ fun AddProductScreen(
         productImages = productImages + uris
     }
     
+    // 상태바 색상을 노란 계열로 설정
+    SetStatusBarColor(
+        statusBarColor = SecondaryBackground,
+        isLightStatusBars = true
+    )
+    
     Scaffold(
         containerColor = Color.White,
         topBar = {
@@ -211,7 +218,8 @@ fun AddProductScreen(
                     Text(
                         "상품 추가하기",
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
                 },
                 navigationIcon = {
@@ -219,12 +227,15 @@ fun AddProductScreen(
                         Image(
                             painter = painterResource(id = R.drawable.arrow_back),
                             contentDescription = "뒤로가기",
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.Black)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = SecondaryBackground
+                    containerColor = SecondaryBackground,
+                    titleContentColor = Color.Black,
+                    navigationIconContentColor = Color.Black
                 )
             )
         }
@@ -360,6 +371,8 @@ fun AddProductScreen(
                         singleLine = true,
                         enabled = !isFromFirestore,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
                             disabledTextColor = Color.Black,
                             disabledBorderColor = Color.Gray,
                             disabledPlaceholderColor = Color.Gray
@@ -498,6 +511,8 @@ fun AddProductScreen(
                         placeholder = { Text("카테고리") },
                         enabled = false,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
                             disabledTextColor = Color.Black,
                             disabledBorderColor = Color.Gray,
                             disabledPlaceholderColor = Color.Gray
@@ -556,14 +571,15 @@ fun AddProductScreen(
                                 // 활성화 상태 - 공개 (checked)
                                 checkedTrackColor = PrimaryAccent,
                                 checkedThumbColor = Color.White,
+                                checkedBorderColor = PrimaryAccent,
                                 // 활성화 상태 - 비공개 (unchecked)
                                 uncheckedTrackColor = Color(0xFFD32F2F), // 붉은 계열
                                 uncheckedThumbColor = Color.White,
-                                // 비활성화 상태면 회색으로 바꿔서 직관적으로 표현
-                                disabledUncheckedTrackColor = Color.Gray.copy(alpha = 0.4f),
-                                disabledCheckedTrackColor = Color.Gray.copy(alpha = 0.4f),
-                                disabledUncheckedThumbColor = Color.Gray,
-                                disabledCheckedThumbColor = Color.LightGray,
+                                uncheckedBorderColor = Color(0xFFD32F2F),
+                                disabledCheckedTrackColor = Color.Gray,
+                                disabledUncheckedTrackColor = Color.Gray,
+                                disabledCheckedThumbColor = Color.White,
+                                disabledUncheckedThumbColor = Color.White
                             )
                         )
                     }
@@ -739,7 +755,11 @@ fun AddProductScreen(
                         placeholder = { Text("상품에 대해 설명해주세요") },
                         minLines = 1,
                         maxLines = 5,
-                        singleLine = false
+                        singleLine = false,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black
+                        )
                     )
                 }
 
@@ -788,7 +808,10 @@ fun AddProductScreen(
                     .height(56.dp),
                 enabled = !uiState.isSaving && productName.isNotBlank() && selectedCategory != null && quantity > 0,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = PrimaryBackground
+                    containerColor = PrimaryBackground,
+                    contentColor = Color.Black,
+                    disabledContainerColor = Color.Gray,
+                    disabledContentColor = Color.White
                 )
             ) {
                 if (uiState.isSaving) {

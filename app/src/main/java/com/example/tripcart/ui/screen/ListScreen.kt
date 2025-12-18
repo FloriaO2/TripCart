@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +74,7 @@ fun ListScreen(
     Scaffold(
         containerColor = Color.White,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        // contentWindowInsets는 제거 - MainActivity에서 setDecorFitsSystemWindows로 처리
         topBar = {
             AppTopBar(
                 title = "전체 리스트",
@@ -228,13 +230,19 @@ fun ListScreen(
             }
             
             // 성공 메시지 표시
+            // ListDetailScreen에서 처리할 수 있도록 약간의 딜레이를 둠
             uiState.successMessage?.let { message ->
                 LaunchedEffect(message) {
-                    snackbarHostState.showSnackbar(
-                        message = message,
-                        duration = SnackbarDuration.Short
-                    )
-                    viewModel.clearSuccessMessage()
+                    kotlinx.coroutines.delay(200) // ListDetailScreen이 먼저 처리할 수 있도록 딜레이
+                    // 딜레이 후에도 메시지가 남아있으면 ListScreen에서 표시 (다른 경로로 추가한 경우)
+                    val currentMessage = uiState.successMessage
+                    if (currentMessage != null && currentMessage == message) {
+                        snackbarHostState.showSnackbar(
+                            message = message,
+                            duration = SnackbarDuration.Short
+                        )
+                        viewModel.clearSuccessMessage()
+                    }
                 }
             }
         }

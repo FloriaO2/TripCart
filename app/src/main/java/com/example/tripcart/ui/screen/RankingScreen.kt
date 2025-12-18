@@ -344,18 +344,24 @@ fun RankingScreen(
                             items = uiState.topCountries,
                             key = { _, countryRanking -> countryRanking.country } // country를 고유키로 사용
                         ) { index, countryRanking ->
-                            CountryRankingBox(
-                                country = countryRanking.country,
-                                rank = index + 1,
-                                products = getTopProductsWithSameRank(
-                                    uiState.countryProducts[countryRanking.country] ?: emptyList(),
-                                    maxCount = 5 // 기준 상품의 위치: 이 위치의 상품 순위까지 모두 포함
-                                ),
-                                onViewAllClick = {
-                                    onNavigateToCountryDetail(countryRanking.country)
-                                },
-                                onNavigateToReview = onNavigateToReview
+                            // 해당 국가의 상품 목록 가져오기
+                            val countryProducts = getTopProductsWithSameRank(
+                                uiState.countryProducts[countryRanking.country] ?: emptyList(),
+                                maxCount = 5 // 기준 상품의 위치: 이 위치의 상품 순위까지 모두 포함
                             )
+                            
+                            // 상품이 있는 경우에만 카드 표시
+                            if (countryProducts.isNotEmpty()) {
+                                CountryRankingBox(
+                                    country = countryRanking.country,
+                                    rank = index + 1,
+                                    products = countryProducts,
+                                    onViewAllClick = {
+                                        onNavigateToCountryDetail(countryRanking.country)
+                                    },
+                                    onNavigateToReview = onNavigateToReview
+                                )
+                            }
                         }
                     }
                 }

@@ -322,7 +322,8 @@ fun RankingDetailScreen(
                     Text(
                         "상품 랭킹",
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
                 },
                 navigationIcon = {
@@ -330,12 +331,15 @@ fun RankingDetailScreen(
                         Image(
                             painter = painterResource(id = R.drawable.arrow_back),
                             contentDescription = "뒤로가기",
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.Black)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.White
+                    containerColor = Color.White,
+                    titleContentColor = Color.Black,
+                    navigationIconContentColor = Color.Black
                 )
             )
         }
@@ -829,7 +833,11 @@ fun CountrySelectionDialog(
                     leadingIcon = {
                         Icon(Icons.Default.Search, contentDescription = "검색")
                     },
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black
+                    )
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -928,7 +936,11 @@ fun PlaceSearchDialog(
                     leadingIcon = {
                         Icon(Icons.Default.Search, contentDescription = "검색")
                     },
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black
+                    )
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))

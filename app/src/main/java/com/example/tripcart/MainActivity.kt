@@ -95,7 +95,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // 상태바 표시 후 시스템 윈도우에 맞춰 콘텐츠 배치
         WindowCompat.setDecorFitsSystemWindows(window, true)
-        // enableEdgeToEdge() // 상태바 표시를 위해 주석 처리
+        
+        // Android 11+ (API 30+)에서 추가로 명시적으로 설정
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(true)
+        }
+        
+        // Android 12+ (API 31+)에서 Edge-to-Edge가 기본적으로 활성화될 수 있으므로
+        // WindowInsets를 명시적으로 비활성화
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            window.setDecorFitsSystemWindows(true)
+            // 추가로 시스템 윈도우에 맞춰 콘텐츠 배치 강제
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+            }
+        }
         
         // 네비게이션 바는 하단바 색상과 동일하게 고정
         window.navigationBarColor = android.graphics.Color.WHITE

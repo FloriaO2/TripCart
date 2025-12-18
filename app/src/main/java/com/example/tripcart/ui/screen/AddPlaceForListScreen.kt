@@ -87,7 +87,8 @@ fun AddPlaceForListScreen(
                     Text(
                         "상점 추가하기",
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
                 },
                 navigationIcon = {
@@ -95,11 +96,14 @@ fun AddPlaceForListScreen(
                         Image(
                             painter = painterResource(id = R.drawable.arrow_back),
                             contentDescription = "뒤로가기",
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.Black)
                         )
                     } },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = SecondaryBackground
+                    containerColor = SecondaryBackground,
+                    titleContentColor = Color.Black,
+                    navigationIconContentColor = Color.Black
                 )
             )
         },
@@ -125,7 +129,11 @@ fun AddPlaceForListScreen(
                     leadingIcon = {
                         Icon(Icons.Default.Search, contentDescription = "검색")
                     },
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black
+                    )
                 )
 
                 // 검색 결과 리스트

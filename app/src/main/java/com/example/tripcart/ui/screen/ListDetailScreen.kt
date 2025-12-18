@@ -87,6 +87,8 @@ fun ListDetailScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
     
     // 리스트 정보
     var listEntity by remember { mutableStateOf<com.example.tripcart.data.local.entity.ListEntity?>(null) }
@@ -246,6 +248,7 @@ fun ListDetailScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = TertiaryBackground,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 // 커스텀 상단바: 좌측 뒤로가기, 중앙 리스트이름, 우측 편집 아이콘
                 Surface(
@@ -266,7 +269,8 @@ fun ListDetailScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "뒤로가기"
+                                contentDescription = "뒤로가기",
+                                tint = Color.Black
                             )
                         }
                         
@@ -275,6 +279,7 @@ fun ListDetailScreen(
                             text = listEntity?.name ?: "",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold,
+                            color = Color.Black,
                             modifier = Modifier.align(Alignment.Center),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -309,10 +314,11 @@ fun ListDetailScreen(
                                     },
                                     modifier = Modifier.size(40.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Edit,
-                                        contentDescription = "리스트 이름 편집"
-                                    )
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "리스트 이름 편집",
+                                    tint = Color.Black
+                                )
                                 }
                             }
                             
@@ -329,7 +335,8 @@ fun ListDetailScreen(
                                 ) {
                                     Icon(
                                         painter = painterResource(id = R.drawable.chat),
-                                        contentDescription = "채팅"
+                                        contentDescription = "채팅",
+                                        tint = Color.Black
                                     )
                                     }
                                     // 읽지 않은 채팅 뱃지
@@ -1020,10 +1027,10 @@ fun ListDetailScreen(
                         ) {
                             HorizontalPager(
                                 state = pagerState,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxSize()
                             ) { page ->
                                 Box(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Image(
@@ -1162,7 +1169,11 @@ fun ListDetailScreen(
                         onValueChange = { editedListName = it },
                         label = { Text("리스트 이름") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black
+                        )
                     )
                 },
                 confirmButton = {
@@ -1200,6 +1211,19 @@ fun ListDetailScreen(
                     }
                 }
             )
+        }
+        
+        // 성공 메시지 표시 (리스트 상세 화면 내에서만 표시)
+        uiState.successMessage?.let { message ->
+            LaunchedEffect(message) {
+                // 먼저 메시지 표시
+                snackbarHostState.showSnackbar(
+                    message = message,
+                    duration = SnackbarDuration.Short
+                )
+                // 메시지 표시 후 즉시 초기화하여 ListScreen에서 표시되지 않도록 함
+                viewModel.clearSuccessMessage()
+            }
         }
     }
 }

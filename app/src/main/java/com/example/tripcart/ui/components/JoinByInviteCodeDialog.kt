@@ -56,6 +56,8 @@ fun JoinByInviteCodeDialog(
                     },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
                         focusedBorderColor = PrimaryAccent,
                         unfocusedBorderColor = Color.Gray
                     )
@@ -84,6 +86,8 @@ fun JoinByInviteCodeDialog(
                     },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
                         focusedBorderColor = PrimaryAccent,
                         unfocusedBorderColor = Color.Gray
                     )
@@ -101,7 +105,10 @@ fun JoinByInviteCodeDialog(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = inviteCodeText.text.isNotBlank() && nickname.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = PrimaryAccent
+                        containerColor = PrimaryAccent,
+                        contentColor = Color.White,
+                        disabledContainerColor = Color.Gray,
+                        disabledContentColor = Color.White
                     )
                 ) {
                     Text(

@@ -58,7 +58,8 @@ fun FavoriteProductsScreen(
                         Text(
                             "찜한 상품",
                             fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
                         )
                     }
                 },
@@ -67,12 +68,15 @@ fun FavoriteProductsScreen(
                         Image(
                             painter = painterResource(id = R.drawable.arrow_back),
                             contentDescription = "뒤로가기",
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.Black)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.White
+                    containerColor = Color.White,
+                    titleContentColor = Color.Black,
+                    navigationIconContentColor = Color.Black
                 )
             )
         }

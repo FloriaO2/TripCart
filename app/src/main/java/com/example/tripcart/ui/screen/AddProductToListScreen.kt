@@ -83,7 +83,8 @@ fun AddProductToListScreen(
                     Text(
                         "리스트에 상품 추가하기",
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
                 },
                 navigationIcon = {
@@ -91,7 +92,8 @@ fun AddProductToListScreen(
                         Image(
                             painter = painterResource(id = R.drawable.arrow_back),
                             contentDescription = "뒤로가기",
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.Black)
                         )
                     }
                 },
@@ -186,7 +188,9 @@ fun AddProductToListScreen(
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = SecondaryBackground
+                    containerColor = SecondaryBackground,
+                    titleContentColor = Color.Black,
+                    navigationIconContentColor = Color.Black
                 )
             )
         },
@@ -505,10 +509,12 @@ fun AddProductToListScreen(
         if (showCreateListDialog) {
             AlertDialog(
                 onDismissRequest = { showCreateListDialog = false },
+                containerColor = Color.White,
                 title = {
                     Text(
                         "새 리스트 만들기",
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
                 },
                 text = {
@@ -518,7 +524,11 @@ fun AddProductToListScreen(
                         label = { Text("리스트 이름") },
                         placeholder = { Text("예: 여행") },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black
+                        )
                     )
                 },
                 confirmButton = {
@@ -543,15 +553,23 @@ fun AddProductToListScreen(
                                 }
                             }
                         },
-                        enabled = !isProcessing
+                        enabled = !isProcessing,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = PrimaryAccent,
+                            disabledContentColor = Color.Gray
+                        )
                     ) {
-                        Text("생성")
+                        Text("생성", color = if (!isProcessing) PrimaryAccent else Color.Gray)
                     }
                 },
                 dismissButton = {
                     TextButton(
                         onClick = { showCreateListDialog = false },
-                        enabled = !isProcessing
+                        enabled = !isProcessing,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = Color.Gray,
+                            disabledContentColor = Color.Gray
+                        )
                     ) {
                         Text("취소")
                     }

@@ -49,6 +49,7 @@ import com.example.tripcart.ui.theme.PrimaryBackground
 import com.example.tripcart.ui.theme.SecondaryBackground
 import com.example.tripcart.ui.theme.TertiaryBackground
 import com.example.tripcart.ui.viewmodel.ProductViewModel
+import com.example.tripcart.util.SetStatusBarColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -68,31 +69,44 @@ fun AddProductForListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var isProcessing by remember { mutableStateOf(false) }
     
-    // 화면 진입 시 해당 리스트를 선택 상태로 설정
-    LaunchedEffect(Unit) {
-        listViewModel.clearAllSelections()
-        listViewModel.toggleListSelection(listId)
-    }
-    
-    
     // ViewModel에서 저장된 draftProduct 불러오기
     val draftProduct = uiState.draftProduct
     
     // 입력 상태 - ViewModel의 draftProduct로 초기화
-    var productImages by remember { mutableStateOf(draftProduct.productImages) }
-    var productName by remember { mutableStateOf(draftProduct.productName) }
-    var productMemo by remember { mutableStateOf(draftProduct.productMemo) }
-    var quantity by remember { mutableStateOf(draftProduct.quantity) }
-    var selectedCategory by remember { mutableStateOf(draftProduct.selectedCategory) }
-    var isPublic by remember { mutableStateOf(draftProduct.isPublic) }
+    var productImages by remember { mutableStateOf(emptyList<Uri>()) }
+    var productName by remember { mutableStateOf("") }
+    var productMemo by remember { mutableStateOf("") }
+    var quantity by remember { mutableStateOf(1) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    var isPublic by remember { mutableStateOf(false) }
     var showCategoryDialog by remember { mutableStateOf(false) }
-    var isFromFirestore by remember { mutableStateOf(draftProduct.isFromFirestore) }
-    var firestoreImageUrls by remember { mutableStateOf(draftProduct.firestoreImageUrls) }
-    var firestoreProductId by remember { mutableStateOf(draftProduct.firestoreProductId) }
+    var isFromFirestore by remember { mutableStateOf(false) }
+    var firestoreImageUrls by remember { mutableStateOf(emptyList<String>()) }
+    var firestoreProductId by remember { mutableStateOf<String?>(null) }
     
     // 검색 관련 상태
     var searchQuery by remember { mutableStateOf("") }
     var showSearchResults by remember { mutableStateOf(false) }
+    
+    // 화면 진입 시 해당 리스트를 선택 상태로 설정 및 이전 입력 기록 초기화
+    LaunchedEffect(Unit) {
+        listViewModel.clearAllSelections()
+        listViewModel.toggleListSelection(listId)
+        productViewModel.clearDraftProduct() // 이전 입력 기록 초기화
+        
+        // 모든 로컬 상태 변수도 직접 초기화
+        productImages = emptyList()
+        productName = ""
+        productMemo = ""
+        quantity = 1
+        selectedCategory = null
+        isPublic = false
+        isFromFirestore = false
+        firestoreImageUrls = emptyList()
+        firestoreProductId = null
+        searchQuery = ""
+        showSearchResults = false
+    }
     
     // draftProduct가 변경되면 입력 필드 업데이트
     // saveDraftProduct를 이용해
@@ -123,7 +137,10 @@ fun AddProductForListScreen(
                 productMemo != draftProduct.productMemo ||
                 quantity != draftProduct.quantity ||
                 selectedCategory != draftProduct.selectedCategory ||
-                isPublic != draftProduct.isPublic) {
+                isPublic != draftProduct.isPublic ||
+                isFromFirestore != false ||
+                firestoreImageUrls != draftProduct.firestoreImageUrls ||
+                firestoreProductId != draftProduct.firestoreProductId) {
                 productImages = draftProduct.productImages
                 productName = draftProduct.productName
                 productMemo = draftProduct.productMemo
@@ -131,6 +148,8 @@ fun AddProductForListScreen(
                 selectedCategory = draftProduct.selectedCategory
                 isPublic = draftProduct.isPublic
                 isFromFirestore = false // 직접 입력하는 경우 false로 설정
+                firestoreImageUrls = draftProduct.firestoreImageUrls
+                firestoreProductId = draftProduct.firestoreProductId
             }
         }
     }
@@ -195,6 +214,12 @@ fun AddProductForListScreen(
         productImages = productImages + uris
     }
     
+    // 상태바 색상을 노란 계열로 설정
+    SetStatusBarColor(
+        statusBarColor = SecondaryBackground,
+        isLightStatusBars = true
+    )
+    
     Scaffold(
         containerColor = Color.White,
         topBar = {
@@ -203,7 +228,8 @@ fun AddProductForListScreen(
                     Text(
                         "상품 추가하기",
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
                 },
                 navigationIcon = {
@@ -211,12 +237,15 @@ fun AddProductForListScreen(
                         Image(
                             painter = painterResource(id = R.drawable.arrow_back),
                             contentDescription = "뒤로가기",
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.Black)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = SecondaryBackground
+                    containerColor = SecondaryBackground,
+                    titleContentColor = Color.Black,
+                    navigationIconContentColor = Color.Black
                 )
             )
         },
@@ -353,6 +382,8 @@ fun AddProductForListScreen(
                         singleLine = true,
                         enabled = !isFromFirestore,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
                             disabledTextColor = Color.Black,
                             disabledBorderColor = Color.Gray,
                             disabledPlaceholderColor = Color.Gray
@@ -491,6 +522,8 @@ fun AddProductForListScreen(
                         placeholder = { Text("카테고리") },
                         enabled = false,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
                             disabledTextColor = Color.Black,
                             disabledBorderColor = Color.Gray,
                             disabledPlaceholderColor = Color.Gray
@@ -549,14 +582,15 @@ fun AddProductForListScreen(
                                 // 활성화 상태 - 공개 (checked)
                                 checkedTrackColor = PrimaryAccent,
                                 checkedThumbColor = Color.White,
+                                checkedBorderColor = PrimaryAccent,
                                 // 활성화 상태 - 비공개 (unchecked)
                                 uncheckedTrackColor = Color(0xFFD32F2F), // 붉은 계열
                                 uncheckedThumbColor = Color.White,
-                                // 비활성화 상태면 회색으로 바꿔서 직관적으로 표현
-                                disabledUncheckedTrackColor = Color.Gray.copy(alpha = 0.4f),
-                                disabledCheckedTrackColor = Color.Gray.copy(alpha = 0.4f),
-                                disabledUncheckedThumbColor = Color.Gray,
-                                disabledCheckedThumbColor = Color.LightGray,
+                                uncheckedBorderColor = Color(0xFFD32F2F),
+                                disabledCheckedTrackColor = Color.Gray,
+                                disabledUncheckedTrackColor = Color.Gray,
+                                disabledCheckedThumbColor = Color.White,
+                                disabledUncheckedThumbColor = Color.White
                             )
                         )
                     }
@@ -732,7 +766,11 @@ fun AddProductForListScreen(
                         placeholder = { Text("상품에 대해 설명해주세요") },
                         minLines = 1,
                         maxLines = 5,
-                        singleLine = false
+                        singleLine = false,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black
+                        )
                     )
                 }
 
@@ -798,6 +836,8 @@ fun AddProductForListScreen(
                             
                             if (result.isSuccess) {
                                 listViewModel.setSuccessMessage("상품이 추가되었습니다.")
+                                // 상품 추가 성공 후 draftProduct 초기화
+                                productViewModel.clearDraftProduct()
                                 onComplete()
                             } else {
                                 snackbarHostState.showSnackbar(
@@ -820,7 +860,10 @@ fun AddProductForListScreen(
                     .height(56.dp),
                 enabled = !isProcessing && productName.isNotBlank() && selectedCategory != null && quantity > 0,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = PrimaryBackground
+                    containerColor = PrimaryBackground,
+                    contentColor = Color.Black,
+                    disabledContainerColor = Color.Gray,
+                    disabledContentColor = Color.White
                 )
             ) {
                 if (isProcessing) {

@@ -831,7 +831,8 @@ fun ChatInputBar(
                         .heightIn(min = 24.dp),
                     textStyle = TextStyle(
                         fontSize = 14.sp,
-                        lineHeight = 18.sp
+                        lineHeight = 18.sp,
+                        color = Color.Black
                     ),
                     maxLines = 7,
                     minLines = 1,

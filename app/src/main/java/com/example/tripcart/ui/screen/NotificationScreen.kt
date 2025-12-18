@@ -38,6 +38,11 @@ fun NotificationScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     
+    // 화면 진입 시 알림 다시 로드
+    LaunchedEffect(Unit) {
+        viewModel.loadNotifications()
+    }
+    
     Scaffold(
         containerColor = Color.White,
         topBar = {
@@ -46,19 +51,23 @@ fun NotificationScreen(
                     Text(
                         text = "알림",
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.Black
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "뒤로가기"
+                            contentDescription = "뒤로가기",
+                            tint = Color.Black
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.White
+                    containerColor = Color.White,
+                    titleContentColor = Color.Black,
+                    navigationIconContentColor = Color.Black
                 )
             )
         }

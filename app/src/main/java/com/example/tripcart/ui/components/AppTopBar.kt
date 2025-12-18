@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color
@@ -29,6 +30,10 @@ fun AppTopBar(
     showActionButton: Boolean = false,
     unreadNotificationCount: Int = 0
 ) {
+    // 상태바 높이 가져오기
+    val density = LocalDensity.current
+    val statusBarHeight = with(density) { WindowInsets.statusBars.getTop(this).toDp() }
+    
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = Color.White
@@ -36,7 +41,12 @@ fun AppTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = statusBarHeight + 12.dp, // 상태바 높이 + 기존 패딩
+                    bottom = 12.dp
+                )
         ) {
             // 좌측 로고 이미지
             IconButton(
@@ -57,6 +67,7 @@ fun AppTopBar(
                 text = title,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
+                color = Color.Black, // 명시적으로 검정색 지정
                 modifier = Modifier.align(Alignment.Center)
             )
             
@@ -74,7 +85,8 @@ fun AppTopBar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "추가"
+                            contentDescription = "추가",
+                            tint = Color.Black
                         )
                     }
                 }
@@ -88,7 +100,8 @@ fun AppTopBar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Notifications,
-                            contentDescription = "알림"
+                            contentDescription = "알림",
+                            tint = Color.Black
                         )
                     }
                     // 읽지 않은 알림 뱃지

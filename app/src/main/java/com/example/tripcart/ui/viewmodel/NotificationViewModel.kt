@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.Job
 import java.util.Date
 
 data class NotificationItem(
@@ -40,13 +41,19 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
     
+    // 알림 로드 Job 추적 (중복 실행 방지)
+    private var loadJob: Job? = null
+    
     init {
         loadNotifications()
     }
     
     // 알림 목록 실시간 로드 (추후 서술할 getNotificationsFlow 함수로 수집한 데이터를 이용)
     fun loadNotifications() {
-        viewModelScope.launch {
+        // 이미 실행 중인 Job이 있으면 취소하고 새로 시작
+        loadJob?.cancel()
+        
+        loadJob = viewModelScope.launch {
             val userId = auth.currentUser?.uid ?: return@launch
             
             _uiState.value = _uiState.value.copy(isLoading = true)

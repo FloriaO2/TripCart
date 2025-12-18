@@ -13,10 +13,12 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class LoginViewModel(application: Application) : AndroidViewModel(application) {
     // 인증 객체 생성
@@ -88,6 +90,9 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         auth.signInWithCredential(credential)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
+                    // 로그인 성공 시 FCM 토큰 가져와서 저장
+                    saveFCMToken()
+                    
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isSignedIn = true,
@@ -100,6 +105,25 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }
+    }
+    
+    // FCM 토큰 가져와서 Firestore에 저장
+    private fun saveFCMToken() {
+        viewModelScope.launch {
+            try {
+                val token = FirebaseMessaging.getInstance().token.await()
+                val userId = auth.currentUser?.uid
+                if (userId != null && token != null) {
+                    com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                        .collection("users")
+                        .document(userId)
+                        .set(mapOf("fcmToken" to token), com.google.firebase.firestore.SetOptions.merge())
+                        .await()
+                }
+            } catch (e: Exception) {
+                // FCM 토큰 저장 실패 시 무시 (onNewToken에서 자동으로 저장됨)
+            }
+        }
     }
     
     // 에러 메시지 초기화

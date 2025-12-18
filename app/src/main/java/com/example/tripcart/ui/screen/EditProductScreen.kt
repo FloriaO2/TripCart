@@ -85,7 +85,8 @@ fun EditProductScreen(
                     Text(
                         "상품 편집하기",
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
                 },
                 navigationIcon = {
@@ -93,7 +94,8 @@ fun EditProductScreen(
                         Image(
                             painter = painterResource(id = R.drawable.arrow_back),
                             contentDescription = "뒤로가기",
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.Black)
                         )
                     }
                 },
@@ -111,7 +113,9 @@ fun EditProductScreen(
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = SecondaryBackground
+                    containerColor = SecondaryBackground,
+                    titleContentColor = Color.Black,
+                    navigationIconContentColor = Color.Black
                 )
             )
         }
@@ -260,7 +264,11 @@ fun EditProductScreen(
                         onValueChange = { productName = it },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("상품 이름을 입력하세요") },
-                        singleLine = true
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black
+                        )
                     )
                 }
                 
@@ -281,6 +289,8 @@ fun EditProductScreen(
                         placeholder = { Text("카테고리") },
                         enabled = false,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
                             disabledTextColor = Color.Black,
                             disabledBorderColor = Color.Gray,
                             disabledPlaceholderColor = Color.Gray
@@ -384,7 +394,11 @@ fun EditProductScreen(
                         placeholder = { Text("상품에 대해 설명해주세요") },
                         minLines = 1,
                         maxLines = 5,
-                        singleLine = false
+                        singleLine = false,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black
+                        )
                     )
                 }
 
