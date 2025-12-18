@@ -809,7 +809,6 @@ fun ChatInputBar(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .wrapContentHeight() // 내용물 높이에 맞추기 - 텍스트 늘어나면 Box 높이도 함께 증가
                     .heightIn(min = 40.dp, max = 120.dp) // 최소 40dp, 최대 120dp 높이로 제한
                     .border(
                         width = 1.dp,
@@ -829,7 +828,7 @@ fun ChatInputBar(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wrapContentHeight(),
+                        .heightIn(min = 24.dp),
                     textStyle = TextStyle(
                         fontSize = 14.sp,
                         lineHeight = 18.sp
@@ -841,7 +840,7 @@ fun ChatInputBar(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .wrapContentHeight(),
+                                .heightIn(min = 16.dp),
                             contentAlignment = Alignment.CenterStart
                         ) {
                             if (textFieldValue.text.isEmpty()) {

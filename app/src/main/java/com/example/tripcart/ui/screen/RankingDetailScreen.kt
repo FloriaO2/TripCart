@@ -936,7 +936,9 @@ fun PlaceSearchDialog(
                 // 검색 결과
                 if (uiState.isSearching) {
                     Box(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
@@ -946,12 +948,11 @@ fun PlaceSearchDialog(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
-                        contentAlignment = Alignment.TopStart
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "검색어를 입력해주세요.",
-                            color = Color.Gray,
-                            modifier = Modifier.padding(start = 16.dp, top = 16.dp)
+                            color = Color.Gray
                         )
                     }
                 } else if (uiState.predictions.isEmpty()) {

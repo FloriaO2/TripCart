@@ -489,7 +489,8 @@ fun ProductItem(
                             text = product.productName,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            maxLines = 2
+                            maxLines = 2,
+                            lineHeight = 15.sp
                         )
                         
                         Text(
