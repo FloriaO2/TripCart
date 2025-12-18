@@ -26,7 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.content.Intent
+import android.net.Uri
 import coil.compose.AsyncImage
 import com.example.tripcart.R
 import com.example.tripcart.ui.theme.PrimaryAccent
@@ -372,15 +375,29 @@ fun AddPlaceForListScreen(
                                     )
                                 }
                                 if (placeDetails.phoneNumber != null && placeDetails.phoneNumber.isNotEmpty()) {
+                                    val context = LocalContext.current
                                     DetailRow(
                                         icon = Icons.Default.Phone,
-                                        value = placeDetails.phoneNumber
+                                        value = placeDetails.phoneNumber,
+                                        onClick = {
+                                            val intent = Intent(Intent.ACTION_DIAL).apply {
+                                                data = Uri.parse("tel:${placeDetails.phoneNumber}")
+                                            }
+                                            context.startActivity(intent)
+                                        }
                                     )
                                 }
                                 if (placeDetails.websiteUri != null && placeDetails.websiteUri.isNotEmpty()) {
+                                    val context = LocalContext.current
                                     DetailRowWithDrawable(
                                         iconRes = R.drawable.link,
-                                        value = placeDetails.websiteUri
+                                        value = placeDetails.websiteUri,
+                                        onClick = {
+                                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                data = Uri.parse(placeDetails.websiteUri)
+                                            }
+                                            context.startActivity(intent)
+                                        }
                                     )
                                 }
 
@@ -468,13 +485,21 @@ fun AddPlaceForListScreen(
 @Composable
 private fun DetailRow(
     icon: ImageVector,
-    value: String
+    value: String,
+    onClick: (() -> Unit)? = null
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
     ) {
         Icon(
             imageVector = icon,
@@ -495,13 +520,21 @@ private fun DetailRow(
 @Composable
 private fun DetailRowWithDrawable(
     iconRes: Int,
-    value: String
+    value: String,
+    onClick: (() -> Unit)? = null
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
     ) {
         Image(
             painter = painterResource(id = iconRes),

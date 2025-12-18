@@ -3,8 +3,10 @@ package com.example.tripcart.ui.screen
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Favorite
@@ -118,62 +120,63 @@ fun MyPageScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Column(
+                modifier = Modifier
+                    .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 40.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             // 사용자 정보
             user?.let {
-                it.displayName?.let { name ->
-                    Text(
-                        text = name,
-                        fontSize = 18.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
-                
-                it.email?.let { email ->
-                    Text(
-                        text = email,
-                        fontSize = 14.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(bottom = 32.dp)
-                    )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(bottom = 14.dp)
+                ) {
+                    it.displayName?.let { name ->
+                        Text(
+                            text = name,
+                            fontSize = 18.sp
+                        )
+                    }
+                    
+                    it.email?.let { email ->
+                        Text(
+                            text = email,
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                    }
                 }
             }
             
-            // 찜한 상품 박스
-            Card(
+            // 로그아웃 버튼
+            Button(
+                onClick = onSignOut,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onNavigateToFavoriteProducts() },
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    .height(40.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFDC3545),
+                    contentColor = Color.White
+                )
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                            imageVector = Icons.Default.Favorite,
-                            contentDescription = null,
-                            tint = Color(0xFFFF1744),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "찜한 상품",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.Black
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.ExitToApp,
+                    contentDescription = "로그아웃",
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "로그아웃",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
-            
+
+            Spacer(modifier = Modifier.height(3.dp))
+
             // 알림 권한 설정 (Android 13 이상)
             if (showNotificationSetting) {
                 Card(
@@ -304,34 +307,37 @@ fun MyPageScreen(
                     }
                 }
             }
-            
-            Spacer(modifier = Modifier.weight(1f))
-            
-            // 로그아웃 버튼
-            Button(
-                onClick = onSignOut,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFDC3545),
-                    contentColor = Color.White
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ExitToApp,
-                    contentDescription = "로그아웃",
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "로그아웃",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            // 구분선
+            HorizontalDivider(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFFE0E0E0),
+                thickness = 1.dp
+            )
+            
+            // 찜한 상품 모아보기
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToFavoriteProducts() }
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = null,
+                    tint = Color(0xFFFF1744),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "찜한 상품 모아보기",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black
+                )
+            }
         }
     }
 }

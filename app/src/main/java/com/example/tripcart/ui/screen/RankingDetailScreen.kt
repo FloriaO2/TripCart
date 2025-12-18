@@ -857,11 +857,25 @@ fun CountrySelectionDialog(
                                 containerColor = Color(0xFFF5F5F5)
                             )
                         ) {
-                            Text(
-                                text = country,
-                                modifier = Modifier.padding(16.dp),
-                                fontSize = 16.sp
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 국기 이모티콘 표시 (매핑에 없으면 표시하지 않음)
+                                countryFlagMap[country]?.let { flag ->
+                                    Text(
+                                        text = flag,
+                                        fontSize = 20.sp
+                                    )
+                                }
+                                Text(
+                                    text = country,
+                                    fontSize = 16.sp
+                                )
+                            }
                         }
                     }
                 }
