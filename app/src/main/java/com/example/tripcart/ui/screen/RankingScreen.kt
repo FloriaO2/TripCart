@@ -324,8 +324,7 @@ fun RankingScreen(
 
                 // 국가별 박스들
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     itemsIndexed(
                         items = uiState.topCountries,
@@ -382,7 +381,6 @@ fun CountryRankingBox(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
             .border(
                 width = 2.dp,
                 color = borderColor,

@@ -15,6 +15,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarHalf
 import androidx.compose.material.icons.outlined.StarBorder
@@ -51,6 +54,7 @@ fun ProductReviewScreen(
     productId: String,
     onBack: () -> Unit = {},
     onNavigateToWriteReview: () -> Unit = {},
+    onNavigateToAddProduct: () -> Unit = {},
     viewModel: ProductViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -64,8 +68,17 @@ fun ProductReviewScreen(
         viewModel.loadReviews(productId)
     }
     
+    // favorite 목록 로드
+    LaunchedEffect(Unit) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user != null) {
+            viewModel.loadFavorites()
+        }
+    }
+    
     val product = uiState.currentProduct
     val reviews = uiState.reviews
+    val isFavorite = uiState.favoriteProductIds.contains(productId)
     
     Scaffold(
         containerColor = Color.White,
@@ -84,6 +97,35 @@ fun ProductReviewScreen(
                             painter = painterResource(id = R.drawable.arrow_back),
                             contentDescription = "뒤로가기",
                             modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                actions = {
+                    // 찜 버튼
+                    IconButton(
+                        modifier = Modifier.size(28.dp),
+                        onClick = { viewModel.toggleFavorite(productId) }
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (isFavorite) "찜 해제" else "찜하기",
+                            tint = if (isFavorite) Color(0xFFFF1744) else Color.Gray,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(2.dp))
+                    // 리스트 추가 버튼
+                    IconButton(
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(28.dp),
+                        onClick = onNavigateToAddProduct
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "리스트에 추가",
+                            tint = PrimaryAccent,
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                 },

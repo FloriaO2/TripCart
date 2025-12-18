@@ -1077,6 +1077,9 @@ fun TripCartNavGraph(
                 onNavigateToWriteReview = {
                     navController.navigate(Screen.WriteReview.createRoute(productId))
                 },
+                onNavigateToAddProduct = {
+                    navController.navigate(Screen.AddProductWithId.createRoute(productId))
+                },
                 viewModel = sharedProductViewModel
             )
         }
