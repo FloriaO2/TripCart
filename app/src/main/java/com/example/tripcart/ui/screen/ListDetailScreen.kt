@@ -321,16 +321,16 @@ fun ListDetailScreen(
                                 Box(
                                     modifier = Modifier.size(40.dp)
                                 ) {
-                                    IconButton(
-                                        onClick = {
-                                            showChatDialog = true
-                                        },
-                                        modifier = Modifier.size(40.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.chat),
-                                            contentDescription = "채팅"
-                                        )
+                                IconButton(
+                                    onClick = {
+                                        showChatDialog = true
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.chat),
+                                        contentDescription = "채팅"
+                                    )
                                     }
                                     // 읽지 않은 채팅 뱃지
                                     if (hasUnreadChat) {

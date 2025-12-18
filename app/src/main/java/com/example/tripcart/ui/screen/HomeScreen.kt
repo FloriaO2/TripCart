@@ -130,7 +130,9 @@ fun HomeScreen(
                                     isOwner = true
                                     showDeleteDialog = true
                                 }
-                            }
+                            },
+                            // 개인 리스트, 공유 리스트 구분해서 아이콘 띄워주기 위해 관련 데이터 전달
+                            isFromFirestore = listItem.isFromFirestore
                         )
                         
                         // 삭제 확인 다이얼로그

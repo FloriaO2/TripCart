@@ -2,6 +2,7 @@ package com.example.tripcart.ui.screen
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -148,7 +149,8 @@ fun ListScreen(
                                     isOwner = true
                                     showDeleteDialog = true
                                 }
-                            }
+                            },
+                            isFromFirestore = listItem.isFromFirestore
                         )
                         
                         // 삭제 확인 다이얼로그
@@ -289,7 +291,8 @@ fun ListCard(
     placeNames: List<String>,
     productCount: Int,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    isFromFirestore: Boolean = false
 ) {
     Box(
         modifier = Modifier
@@ -308,10 +311,19 @@ fun ListCard(
         )
 
         // 실제 카드
+        // 상태에 따른 테두리 색상
+        val borderColor = when(status) {
+            "준비중" -> Color(0xFFFFA500) // 주황색
+            "진행중" -> Color(0xFF5DADE2) // 파란색
+            "완료" -> Color(0xFF7C9A52) // 초록색
+            else -> Color.Gray
+        }
+        
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick),
+                .clickable(onClick = onClick)
+                .border(2.dp, borderColor, RoundedCornerShape(12.dp)),
             color = TertiaryBackground, // 카드 배경색
             shape = RoundedCornerShape(12.dp),
         ) {
@@ -331,7 +343,7 @@ fun ListCard(
                         modifier = Modifier.weight(1f)
                     )
                     if (country.isNotEmpty()) {
-                        CountryTag(country)
+                        CountryTag(country, isFromFirestore)
                         Spacer(modifier = Modifier.width(8.dp))
                     }
                     IconButton(
@@ -439,7 +451,7 @@ fun StatusTag(status: String) {
 }
 
 @Composable
-fun CountryTag(country: String) {
+fun CountryTag(country: String, isFromFirestore: Boolean = false) {
     Box(
         modifier = Modifier
             .background(PrimaryBackground, shape = RoundedCornerShape(8.dp))
@@ -450,8 +462,14 @@ fun CountryTag(country: String) {
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Image(
-                painter = painterResource(id = R.drawable.country),
-                contentDescription = "국가",
+                painter = painterResource(
+                    id = if (isFromFirestore) {
+                        R.drawable.lock_open
+                    } else {
+                        R.drawable.lock
+                    }
+                ),
+                contentDescription = if (isFromFirestore) "공유 리스트" else "개인 리스트",
                 modifier = Modifier.size(16.dp)
             )
             Text(

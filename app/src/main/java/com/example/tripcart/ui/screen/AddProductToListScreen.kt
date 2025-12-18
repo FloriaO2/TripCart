@@ -634,8 +634,18 @@ private fun SelectableListItemCardForProduct(
         )
 
         // 실제 카드
+        // 상태에 따른 테두리 색상
+        val borderColor = when(listItem.status) {
+            "준비중" -> Color(0xFFFFA500) // 주황색
+            "진행중" -> Color(0xFF5DADE2) // 파란색
+            "완료" -> Color(0xFF7C9A52) // 초록색
+            else -> Color.Gray
+        }
+        
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(2.dp, borderColor, RoundedCornerShape(12.dp)),
             color = when {
                 isForcedChecked -> Color(0xFFFFE0B2) // 이미 들어있는 리스트는 연한 주황색 배경
                 listItem.isSelected -> Color(0xFFFFD080) // 선택된 리스트는 노란색 배경
@@ -695,7 +705,7 @@ private fun SelectableListItemCardForProduct(
                     )
                     
                     if (listItem.country != null && listItem.country.isNotEmpty()) {
-                        CountryTag(listItem.country)
+                        CountryTag(listItem.country, listItem.isFromFirestore)
                         Spacer(modifier = Modifier.width(8.dp))
                     }
                 }

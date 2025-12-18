@@ -539,7 +539,7 @@ fun PlaceBottomSheet(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp, bottom = 4.dp)
+                    .padding(top = 1.dp, bottom = 1.dp)
             ) {
                 Text(
                     text = "상세페이지 보기",
@@ -582,7 +582,7 @@ fun PlaceBottomSheet(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(products) { product ->
                             MapProductCard(
@@ -682,7 +682,7 @@ fun MapProductCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)

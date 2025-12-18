@@ -311,12 +311,15 @@ fun RankingScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                // TOP3 제목
+                // 국가별 인기 상품 제목
                 Text(
-                    text = "지금 가장 많이 찾는 여행지 TOP3!",
+                    text = "🏆 인기 국가별 추천 상품 🏆",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 16.dp)
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 10.dp, end = 10.dp, top = 0.dp, bottom = 16.dp)
                 )
 
                 // 국가별 박스들

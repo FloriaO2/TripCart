@@ -131,28 +131,28 @@ fun MyPageScreen(
             Column(
                 modifier = Modifier
                     .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 40.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             // 사용자 정보
             user?.let {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(bottom = 14.dp)
                 ) {
-                    it.displayName?.let { name ->
-                        Text(
-                            text = name,
+                it.displayName?.let { name ->
+                    Text(
+                        text = name,
                             fontSize = 18.sp
-                        )
-                    }
-                    
-                    it.email?.let { email ->
-                        Text(
-                            text = email,
-                            fontSize = 14.sp,
+                    )
+                }
+                
+                it.email?.let { email ->
+                    Text(
+                        text = email,
+                        fontSize = 14.sp,
                             color = Color.Gray
-                        )
+                    )
                     }
                 }
             }
@@ -168,22 +168,22 @@ fun MyPageScreen(
                     containerColor = Color(0xFFDC3545),
                     contentColor = Color.White
                 )
-            ) {
-                Icon(
+                ) {
+                    Icon(
                     imageVector = Icons.Default.ExitToApp,
                     contentDescription = "로그아웃",
                     modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    Text(
                     text = "로그아웃",
-                    fontSize = 16.sp,
+                        fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
-                )
+                    )
             }
 
             Spacer(modifier = Modifier.height(3.dp))
-
+            
             // 알림 권한 설정 (Android 13 이상)
             if (showNotificationSetting) {
                 Card(
@@ -313,7 +313,7 @@ fun MyPageScreen(
                         )
                     }
                 }
-            }
+                }
             }
             
             // 구분선

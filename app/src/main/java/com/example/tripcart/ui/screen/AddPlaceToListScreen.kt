@@ -461,8 +461,18 @@ private fun SelectableListItemCard(
         )
 
         // 실제 카드
+        // 상태에 따른 테두리 색상
+        val borderColor = when(listItem.status) {
+            "준비중" -> Color(0xFFFFA500) // 주황색
+            "진행중" -> Color(0xFF5DADE2) // 파란색
+            "완료" -> Color(0xFF7C9A52) // 초록색
+            else -> Color.Gray
+        }
+        
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(2.dp, borderColor, RoundedCornerShape(12.dp)),
             color = when {
                 isAlreadyInList -> Color(0xFFFFE0B2) // 이미 들어있는 리스트는 연한 주황색 배경
                 !isSelectable -> Color(0xFFE0E0E0) // 비활성화된 블럭은 회색 배경
@@ -529,7 +539,7 @@ private fun SelectableListItemCard(
                     
                     if (listItem.country != null && listItem.country.isNotEmpty()) {
                         if (isSelectable || isAlreadyInList) {
-                            CountryTag(listItem.country)
+                            CountryTag(listItem.country, listItem.isFromFirestore)
                         } else {
                             DisabledCountryTag(listItem.country)
                         }
