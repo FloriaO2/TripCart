@@ -47,28 +47,28 @@
 
 > Frontend
 > 
-- `Kotlin` + `Jetpack Compose` – Android 네이티브 UI
+> - `Kotlin` + `Jetpack Compose` – Android 네이티브 UI
 
 > Backend
 > 
-- `Firebase Authentication` – Google Sign-In / ID Token 인증
-- `Cloud Functions` – 푸시 알림, 상품 랭킹, 상태 동기화, 알림 트리거
+> - `Firebase Authentication` – Google Sign-In / ID Token 인증
+> - `Cloud Functions` – 푸시 알림, 상품 랭킹, 상태 동기화, 알림 트리거
 
 > Location & Map
 > 
-- `Google Maps API` – 매장 마커 및 지도 렌더링
-- `Google Places API` – 매장 검색 및 장소 상세 정보 제공
-- `Geofencing` – 도보 4분 이내 매장 접근 감지 및 알림 트리거
-- `Android SDK` – 실시간 현재 위치 수집
+> - `Google Maps API` – 매장 마커 및 지도 렌더링
+> - `Google Places API` – 매장 검색 및 장소 상세 정보 제공
+> - `Geofencing` – 도보 4분 이내 매장 접근 감지 및 알림 트리거
+> - `Android SDK` – 실시간 현재 위치 수집
 
 > Storage
 > 
-- `Firebase Storage` – 공개/리스트 상품 이미지 저장
+> - `Firebase Storage` – 공개/리스트 상품 이미지 저장
 
 > DB
 > 
-- `RoomDB` – 개인 리스트 오프라인 저장
-- `Firestore` – 공유 리스트 및 공개 상품 데이터 실시간 관리
+> - `RoomDB` – 개인 리스트 오프라인 저장
+> - `Firestore` – 공유 리스트 및 공개 상품 데이터 실시간 관리
 
 ---
 
