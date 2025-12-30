@@ -1,3 +1,9 @@
+<div align="center">
+  <a href="https://www.notion.so/TripCart-2d9eb69cdf4980dd81a3d2720434f7bd?source=copy_link">
+    ▶ Notion에서 보기
+  </a>
+</div>
+
 # ✈️ TripCart
 
 **장소 기반 스마트 쇼핑 리스트 관리 앱**
@@ -5,8 +11,8 @@
 ---
 
 <p align="center">
-  <img width="255" alt="TripCart" src="https://github.com/user-attachments/assets/cd871286-dfee-4872-933d-18d6a720f2ab" />
-  <img width="130" alt="KakaoTalk" src="https://github.com/user-attachments/assets/0718540f-894d-4001-bf8c-90a7a89dcc9c" />
+  <img width="255" alt="TripCart_Logo" src="https://github.com/user-attachments/assets/cd871286-dfee-4872-933d-18d6a720f2ab" />
+  <img width="130" alt="TripCart_LoginScreen" src="https://github.com/user-attachments/assets/0718540f-894d-4001-bf8c-90a7a89dcc9c" />
 </p>
 
 ## 🤷 What is TripCart?
@@ -218,7 +224,9 @@
   <img width="143" src="https://github.com/user-attachments/assets/27230b10-9224-4410-a33d-ffe6f6a47663" style="margin:0 10px;" />
   <img width="130" src="https://github.com/user-attachments/assets/ed926398-3da4-414a-a368-636075c4a0a5" style="margin:0 10px;" />
 </p>
-https://github.com/user-attachments/assets/d5b22ae4-327c-48c0-a6c4-fe17fb224b61
+
+https://github.com/user-attachments/assets/e1ca5fc8-9368-4ed6-8577-6b8861e65222
+
 <br />
 
 **🔔 리스트 속 매장 근처 도착 알림**
