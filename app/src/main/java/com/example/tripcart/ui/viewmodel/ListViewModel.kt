@@ -1065,64 +1065,46 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         val change = if (increment) 1 else -1
         
         try {
-            val batch = db.batch()
-            
-            // 국가별 전체 카운트 업데이트
-            val countryTotalRef = db.collection("product_stats")
-                .document("countries")
-                .collection(country)
-                .document("totalCount")
-            batch.set(countryTotalRef, hashMapOf("count" to FieldValue.increment(change.toLong())), com.google.firebase.firestore.SetOptions.merge())
-            
-            // 국가별 상품 카운트 업데이트
-            val countryProductRef = db.collection("product_stats")
-                .document("countries")
-                .collection(country)
-                .document("products")
-                .collection(productId)
-                .document("count")
-            batch.set(countryProductRef, hashMapOf("count" to FieldValue.increment(change.toLong())), com.google.firebase.firestore.SetOptions.merge())
-            
-            // 장소별 상품 카운트 업데이트
-            placeIds.forEach { placeId ->
-                val placeProductRef = db.collection("product_stats")
-                    .document("places")
-                    .collection(placeId)
+            // 트랜잭션을 사용하여 읽기-수정-쓰기를 원자적으로 처리
+            db.runTransaction { transaction ->
+                // 국가별 전체 카운트 업데이트
+                val countryTotalRef = db.collection("product_stats")
+                    .document("countries")
+                    .collection(country)
+                    .document("totalCount")
+                
+                // 국가별 상품 카운트 업데이트
+                val countryProductRef = db.collection("product_stats")
+                    .document("countries")
+                    .collection(country)
                     .document("products")
                     .collection(productId)
                     .document("count")
-                batch.set(placeProductRef, hashMapOf("count" to FieldValue.increment(change.toLong())), com.google.firebase.firestore.SetOptions.merge())
-            }
-            
-            batch.commit().await()
-            
-            // 감소하는 경우, count가 0이 된 문서를 삭제
-            if (!increment) {
-                // 국가별 상품 카운트 확인 및 삭제
-                // products/{productId}/count가 0이 되면 {productId} 컬렉션 전체 삭제
-                val countryProductDoc = countryProductRef.get().await()
-                if (countryProductDoc.exists()) {
-                    val productCount = (countryProductDoc.getLong("count") ?: 0).toInt()
-                    if (productCount <= 0) {
-                        // {productId} 컬렉션의 모든 문서 삭제
-                        countryProductDoc.reference.delete().await()
-                    }
+                
+                // 먼저 현재 값들을 읽어옴 (트랜잭션 내에서)
+                val countryTotalDoc = transaction.get(countryTotalRef)
+                val countryProductDoc = transaction.get(countryProductRef)
+                
+                val currentTotalCount = (countryTotalDoc.getLong("count") ?: 0).toLong()
+                val currentProductCount = (countryProductDoc.getLong("count") ?: 0).toLong()
+                
+                val newTotalCount = (currentTotalCount + change).coerceAtLeast(0)
+                val newProductCount = (currentProductCount + change).coerceAtLeast(0)
+                
+                // 업데이트 실행
+                if (newTotalCount > 0) {
+                    transaction.set(countryTotalRef, hashMapOf("count" to newTotalCount), com.google.firebase.firestore.SetOptions.merge())
+                } else if (countryTotalDoc.exists()) {
+                    transaction.delete(countryTotalRef)
                 }
                 
-                // 국가별 전체 카운트 확인 및 삭제
-                // totalCount가 0이 되면 {country} 컬렉션 전체 삭제
-                val countryTotalDoc = countryTotalRef.get().await()
-                if (countryTotalDoc.exists()) {
-                    val totalCount = (countryTotalDoc.getLong("count") ?: 0).toInt()
-                    if (totalCount <= 0) {
-                        // {country} 컬렉션의 totalCount 문서가 삭제됐고
-                        // {country} 컬렉션의 products 문서 내부에 아무것도 존재하지 않는다면
-                        // {country} 컬렉션도 자동으로 사라짐
-                        countryTotalDoc.reference.delete().await()
-                    }
+                if (newProductCount > 0) {
+                    transaction.set(countryProductRef, hashMapOf("count" to newProductCount), com.google.firebase.firestore.SetOptions.merge())
+                } else if (countryProductDoc.exists()) {
+                    transaction.delete(countryProductRef)
                 }
                 
-                // 각 장소별 상품 카운트 확인 및 삭제
+                // 장소별 상품 카운트 업데이트
                 placeIds.forEach { placeId ->
                     val placeProductRef = db.collection("product_stats")
                         .document("places")
@@ -1130,18 +1112,20 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
                         .document("products")
                         .collection(productId)
                         .document("count")
-                    val placeProductDoc = placeProductRef.get().await()
-                    if (placeProductDoc.exists()) {
-                        val placeCount = (placeProductDoc.getLong("count") ?: 0).toInt()
-                        if (placeCount <= 0) {
-                            // count 문서를 삭제하면 내부가 비어있는 {productId} 컬렉션이 삭제되며
-                            // 마찬가지로 {productId}가 하나도 없으면 products 문서 삭제,
-                            // 내부 요소가 없어졌으므로 {placeId} 컬렉션도 자동으로 사라지는 등 연쇄작용 발생
-                            placeProductDoc.reference.delete().await()
-                        }
+                    
+                    val placeProductDoc = transaction.get(placeProductRef)
+                    val currentPlaceCount = (placeProductDoc.getLong("count") ?: 0).toLong()
+                    val newPlaceCount = (currentPlaceCount + change).coerceAtLeast(0)
+                    
+                    if (newPlaceCount > 0) {
+                        transaction.set(placeProductRef, hashMapOf("count" to newPlaceCount), com.google.firebase.firestore.SetOptions.merge())
+                    } else if (placeProductDoc.exists()) {
+                        transaction.delete(placeProductRef)
                     }
                 }
-            }
+                
+                null
+            }.await()
         } catch (e: Exception) {
             // 랭킹 데이터 업데이트 실패
             android.util.Log.e("ListViewModel", "Error updating product stats", e)
@@ -1159,29 +1143,30 @@ class ListViewModel(application: Application) : AndroidViewModel(application) {
         val change = if (increment) 1 else -1
         
         try {
-            val placeProductRef = db.collection("product_stats")
-                .document("places")
-                .collection(placeId)
-                .document("products")
-                .collection(productId)
-                .document("count")
-            placeProductRef.set(
-                hashMapOf("count" to FieldValue.increment(change.toLong())),
-                com.google.firebase.firestore.SetOptions.merge()
-            ).await()
-            
-            // 감소하는 경우, count가 0이 된 문서를 삭제
-            if (!increment) {
-                val placeProductDoc = placeProductRef.get().await()
-                if (placeProductDoc.exists()) {
-                    val placeCount = (placeProductDoc.getLong("count") ?: 0).toInt()
-                    if (placeCount <= 0) {
-                        placeProductDoc.reference.delete().await()
-                    }
+            // 트랜잭션을 사용하여 읽기-수정-쓰기를 원자적으로 처리
+            db.runTransaction { transaction ->
+                val placeProductRef = db.collection("product_stats")
+                    .document("places")
+                    .collection(placeId)
+                    .document("products")
+                    .collection(productId)
+                    .document("count")
+                
+                val placeProductDoc = transaction.get(placeProductRef)
+                val currentPlaceCount = (placeProductDoc.getLong("count") ?: 0).toLong()
+                val newPlaceCount = (currentPlaceCount + change).coerceAtLeast(0)
+                
+                if (newPlaceCount > 0) {
+                    transaction.set(placeProductRef, hashMapOf("count" to newPlaceCount), com.google.firebase.firestore.SetOptions.merge())
+                } else if (placeProductDoc.exists()) {
+                    transaction.delete(placeProductRef)
                 }
-            }
+                
+                null
+            }.await()
         } catch (e: Exception) {
             // 오류 발생
+            android.util.Log.e("ListViewModel", "Error updating product stats for place", e)
         }
     }
     
